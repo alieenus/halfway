@@ -17,6 +17,8 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { -webkit-text-size-adjust: 100%; }
+html, body { overscroll-behavior-y: none; }
+button, .pill, .stile, .cell, .day, .tabbar, .nav { -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); min-height: 100vh; }
 button { font-family: inherit; color: inherit; cursor: pointer; }
 button:focus-visible, input:focus-visible, a:focus-visible { outline: 2.5px solid var(--ink); outline-offset: 2px; }
@@ -207,3 +209,9 @@ h1, h2, h3 { margin: 0; }
 
 .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .stepper input { -moz-appearance: textfield; appearance: textfield; }
+
+.hint { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: 20px; padding: 12px 6px 12px 14px; font-size: 13px; font-weight: 600; color: var(--muted2); box-shadow: 0 1px 0 var(--line); }
+.hint b { color: var(--ink); font-weight: 800; }
+.hint-ic { display: grid; grid-template-columns: repeat(2, 9px); gap: 2px; padding: 7px; background: var(--ink); border-radius: 11px; flex: none; }
+.hint-ic span { width: 9px; height: 9px; border-radius: 3px; }
+@media (display-mode: standalone) { .main { padding-top: calc(var(--safe-top) + 14px); } }

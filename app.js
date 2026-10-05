@@ -433,13 +433,23 @@
     const a = ui.auth, login = a.mode === 'login';
     return '<div class="login"><form class="box" data-submit="auth" novalidate>' +
       '<div class="logo"><span style="background:#DC3B41"></span><span style="background:#3E63DD"></span><span style="background:#E0590A"></span><span style="background:#2B9358"></span></div>' +
-      '<div><h1 class="h1">HalfWay</h1><div class="muted">Twój dziennik treningów</div></div>' +
+      '<div><h1 class="h1">HalfWay</h1><div class="muted">Twój dziennik treningów</div></div>' + installHint() +
       '<div class="field"><label for="in-email">E-mail</label><input class="input" id="in-email" data-in="email" type="email" autocomplete="email" autocapitalize="off" value="' + esc(a.email) + '"></div>' +
       '<div class="field"><label for="in-pass">Hasło' + (login ? '' : ' (min. 6 znaków)') + '</label><input class="input" id="in-pass" data-in="pass" type="password" autocomplete="' + (login ? 'current-password' : 'new-password') + '" value="' + esc(a.pass) + '"></div>' +
       (a.msg ? '<div class="msg' + (a.err ? ' err' : '') + '" role="status">' + esc(a.msg) + '</div>' : '') +
       '<button type="submit" class="btn big"' + (a.busy ? ' disabled' : '') + '>' + (a.busy ? 'Chwila…' : (login ? 'Zaloguj się' : 'Załóż konto')) + '</button>' +
       '<button type="button" class="link-btn" data-a="authMode">' + (login ? 'Nie masz konta? Załóż je' : 'Masz już konto? Zaloguj się') + '</button>' +
       '</form></div>';
+  }
+
+  const STANDALONE = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+  const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  function installHint() {
+    if (STANDALONE || !IOS) return '';
+    try { if (localStorage.getItem('halfway:hint-off')) return ''; } catch (e) { /* */ }
+    return '<div class="hint" role="note"><div class="hint-ic"><span style="background:#DC3B41"></span><span style="background:#3E63DD"></span><span style="background:#E0590A"></span><span style="background:#2B9358"></span></div>' +
+      '<div style="flex:1;min-width:0"><b>Zainstaluj HalfWay jak aplikację</b><div>Stuknij <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg> <b>Udostępnij</b>, potem <b>Dodaj do ekranu początkowego</b>.</div></div>' +
+      '<button type="button" class="icon-btn" data-a="hintOff" aria-label="Ukryj podpowiedź">' + ICON.x + '</button></div>';
   }
 
   function viewApp() {
@@ -456,7 +466,7 @@
     const sheet = ui.sheet
       ? '<div class="overlay' + (ui.sheetAnim ? ' anim' : '') + '"><button type="button" class="backdrop" data-a="closeSheet" aria-label="Zamknij"></button><div class="sheet" role="dialog" aria-label="Nowy trening"><div class="grab"></div>' + addPanel(c, 'sheet') + '</div></div>'
       : '';
-    return sidebar + '<main class="main stack">' + body + '</main>' + fab + tabbar + sheet + toastHtml();
+    return sidebar + '<main class="main stack">' + installHint() + body + '</main>' + fab + tabbar + sheet + toastHtml();
   }
 
   function toastHtml() {
@@ -585,6 +595,7 @@
       ui.auth = { mode: 'login', email: '', pass: '', busy: false, msg: '', err: false };
       render();
     },
+    hintOff() { try { localStorage.setItem('halfway:hint-off', '1'); } catch (e) { /* */ } render(); },
     authMode() { ui.auth.mode = ui.auth.mode === 'login' ? 'signup' : 'login'; ui.auth.msg = ''; render(); }
   };
 
