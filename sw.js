@@ -1,8 +1,9 @@
 // HalfWay – service worker: aplikacja otwiera się też bez internetu.
-const VERSION = 'halfway-v4';
+const VERSION = 'halfway-v5';
 const SHELL = [
   './', 'index.html', 'styles.css', 'app.js', 'config.js', 'vendor/supabase.js',
-  'manifest.webmanifest', 'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/favicon.png'
+  'manifest.webmanifest', 'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/favicon.png',
+  'icons/sports/pompki.png', 'icons/sports/przysiady.png', 'icons/sports/koszykowka.png', 'icons/sports/pilka.png', 'icons/sports/rower.png'
 ];
 
 self.addEventListener('install', (event) => {

@@ -15,6 +15,17 @@
   const C_GREEN = '#3DAA6A', C_BLUE = '#3E63DD', C_GOLD = '#B8860B', C_YELLOW = '#E5B700', C_RED = '#DC3B41', C_PURPLE = '#A23CB8';
   const COLORS = [C_GREEN, C_BLUE, C_YELLOW, C_RED, C_PURPLE, '#0D8F99', '#E0590A', '#C2357F'];
   // tekst na kolorowym tle: ciemny na jasnych kolorach (żółty), biały na pozostałych
+  // ikony sportów (maski PNG w icons/sports, kolor = kolor tekstu)
+  const SPORT_ICONS = [[/pomp/, 'pompki'], [/przysiad/, 'przysiady'], [/kosz/, 'koszykowka'], [/pi[łl]k|no[żz]n|footb/, 'pilka'], [/rower|bike/, 'rower']];
+  function iconFor(sp) {
+    const n = (sp.name || '').toLowerCase();
+    const hit = SPORT_ICONS.find((x) => x[0].test(n));
+    return hit ? hit[1] : null;
+  }
+  function badgeInner(sp) {
+    const ic = iconFor(sp);
+    return ic ? '<span class="sicon" style="-webkit-mask-image:url(icons/sports/' + ic + '.png);mask-image:url(icons/sports/' + ic + '.png)"></span>' : esc(sp.name.charAt(0));
+  }
   const onColor = (hex) => { const n = parseInt(hex.slice(1), 16); const r = n >> 16, g = (n >> 8) & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) > 170 ? '#17171B' : '#FFFFFF'; };
   // x10 = wpisujesz liczbę dziesiątek (4 = 40 powtórzeń); tak = trening był (min. 30 min)
   const UNITS = ['x10', 'tak', 'powt.', 'min', 'km'];
@@ -96,6 +107,14 @@
     const row = { id: uuid(), sport_id: sportId, date: date, amount: amount };
     if (place) row.place = place;
     store.entries.push(row);
+    enqueue({ t: 'entries', op: 'upsert', row: row });
+  }
+  function updateEntry(id, patch) {
+    const e = store.entries.find((x) => x.id === id);
+    if (!e) return;
+    Object.assign(e, patch);
+    const row = Object.assign({}, e);
+    if (row.place == null && !('place' in patch)) delete row.place;
     enqueue({ t: 'entries', op: 'upsert', row: row });
   }
   function deleteEntry(id) {
@@ -286,7 +305,7 @@
     calY: t0.getFullYear(), calM: t0.getMonth(), selDay: dkey(t0),
     sheet: false,
     draft: { date: dkey(t0), sportId: null, amount: 4 },
-    wDraft: { date: dkey(t0), kg: null }, wSel: null, weightsMissing: false,
+    wDraft: { date: dkey(t0), kg: null }, editDay: dkey(addDays(t0, -1)), wSel: null, weightsMissing: false,
     toast: null,
     newSport: { name: '', unit: 'x10', color: COLORS[5], places: [] },
     edit: null,
@@ -346,8 +365,9 @@
 
   function entryRow(c, e, compact, readonly) {
     const s = c.smap[e.sport_id];
-    return '<div class="entry' + (compact ? ' compact' : '') + '">' +
-      '<div class="badge' + (compact ? ' s' : '') + '" style="background:' + s.color + ';color:' + onColor(s.color) + '">' + esc(s.name.charAt(0)) + '</div>' +
+    return '<div class="entry' + (compact ? ' compact' : '') + (readonly ? '' : ' editable') + '"' +
+      (readonly ? '' : ' data-a="editEntry" data-id="' + e.id + '" role="button" tabindex="0" aria-label="Edytuj: ' + esc(s.name) + '"') + '>' +
+      '<div class="badge' + (compact ? ' s' : '') + '" style="background:' + s.color + ';color:' + onColor(s.color) + '">' + badgeInner(s) + '</div>' +
       '<div style="flex:1;min-width:0"><div class="name">' + esc(s.name) + '</div>' +
       (e.place ? '<div class="small place">' + ICON.pin + esc(e.place) + '</div>'
         : compact ? '' : '<div class="small">' + esc(s.unit === 'x10' ? num(e.amount) + ' × 10' : (UNIT_LONG[s.unit] || s.unit)) + '</div>') + '</div>' +
@@ -356,6 +376,26 @@
         : '<div class="amt">' + shown(s, e.amount).v + '<small>' + esc(shown(s, e.amount).u) + '</small></div>') +
       (readonly ? '' : '<button type="button" class="icon-btn" data-a="delEntry" data-id="' + e.id + '" aria-label="Usuń wpis: ' + esc(s.name) + '">' + ICON.x + '</button>') +
       '</div>';
+  }
+
+  function editOtherDays(c) {
+    let strip = '';
+    for (let i = 14; i >= 1; i--) {
+      const d = addDays(c.T, -i), k = dkey(d);
+      strip += '<button type="button" class="dchip' + (ui.editDay === k ? ' on' : '') + '" data-a="editDay" data-k="' + k + '" aria-label="' + esc(longDate(d)) + '">' +
+        '<span class="dl">' + DAYS_S[d.getDay()] + '</span><span class="dn">' + d.getDate() + '</span><span class="bar">' + segs(c, k, false) + '</span></button>';
+    }
+    const inStrip = (parseKey(ui.editDay) >= addDays(c.T, -14));
+    const list = sortedEntries(c, ui.editDay);
+    return '<section class="stack-s edit-days">' +
+      '<div class="between"><h2 class="h2">Edytuj inne dni</h2>' +
+        '<label class="pill datepick' + (inStrip ? '' : ' on') + '">' + ICON.cal.replace(/24/g, '16') + (inStrip ? 'Starszy dzień' : parseKey(ui.editDay).getDate() + ' ' + M_SHORT[parseKey(ui.editDay).getMonth()]) +
+        '<input type="date" data-ch="editDay" max="' + dkey(addDays(c.T, -1)) + '" value="' + ui.editDay + '" aria-label="Wybierz dzień do edycji"></label></div>' +
+      '<div class="dstrip">' + strip + '</div>' +
+      '<div class="small" style="font-size:13px;color:var(--ink);font-weight:800;margin-top:4px">' + esc(longDate(parseKey(ui.editDay))) + '</div>' +
+      (list.length ? list.map((e) => entryRow(c, e, true)).join('') : '<div class="muted">Brak treningu tego dnia.</div>') +
+      '<button type="button" class="btn ghost" data-a="open" data-date="' + ui.editDay + '">' + ICON.plus.replace(/26/g, '18') + 'Dopisz trening do tego dnia</button>' +
+      '</section>';
   }
 
   // opis dnia do podpowiedzi po najechaniu (Ciągłość)
@@ -391,7 +431,8 @@
         (n === 0
           ? '<div class="empty"><div style="font-weight:800;font-size:16px">Dziś jeszcze nic</div><div class="muted">Wpisz pierwszy trening, żeby nie przerwać serii.</div><button type="button" class="btn mob-only" data-a="open">Dodaj trening</button></div>'
           : list.map((e) => entryRow(c, e, false)).join('')) +
-      '</section>';
+        (n ? '<div class="small" style="font-weight:600">Stuknij wpis, żeby go poprawić.</div>' : '') +
+      '</section>' + editOtherDays(c);
     return '<div class="top"><div><div class="eyebrow">' + esc(longDate(c.T)) + '</div><h1 class="h1">Dzisiaj</h1></div>' + syncBadge() + '</div>' +
       '<div class="today-grid"><div class="stack">' + left + '</div><div class="side desk-only">' + addPanel(c, 'side') + '</div></div>';
   }
@@ -501,7 +542,7 @@
       const sum = es.reduce((a, e) => a + Number(e.amount), 0);
       const tot = isCheck(s) ? { v: num(es.length), u: plural(es.length, 'raz', 'razy', 'razy') } : shown(s, sum);
       return '<button type="button" class="sport-row" data-a="editSport" data-id="' + s.id + '" aria-label="Edytuj ' + esc(s.name) + '">' +
-        '<span class="badge" style="width:42px;height:42px;border-radius:12px;font-size:19px;background:' + s.color + ';color:' + onColor(s.color) + '">' + esc(s.name.charAt(0)) + '</span>' +
+        '<span class="badge" style="width:42px;height:42px;border-radius:12px;font-size:19px;background:' + s.color + ';color:' + onColor(s.color) + '">' + badgeInner(s) + '</span>' +
         '<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-weight:800;font-size:15px">' + esc(s.name) + '</span>' +
         '<span class="small">' + es.length + ' ' + plural(es.length, 'trening', 'treningi', 'treningów') + ' w ' + M_LOC[c.T.getMonth()] + '</span></span>' +
         '<span class="tot"><b>' + tot.v + '</b><span class="small">' + esc(tot.u) + '</span></span></button>';
@@ -533,13 +574,13 @@
       const on = s.id === sp.id;
       return '<button type="button" class="stile" data-a="pickSport" data-id="' + s.id + '" aria-pressed="' + on + '"' +
         (on ? ' style="background:' + s.color + '1F;box-shadow:inset 0 0 0 2px ' + s.color + '"' : '') + '>' +
-        '<span class="sw" style="background:' + s.color + '"></span><span class="nm">' + esc(s.name) + '</span></button>';
+        '<span class="sw" style="background:' + s.color + ';color:' + onColor(s.color) + '">' + badgeInner(s) + '</span><span class="nm">' + esc(s.name) + '</span></button>';
     }).join('');
     const chk = isCheck(sp);
-    const already = chk && (store.entries || []).some((e) => e.sport_id === sp.id && e.date === d.date);
+    const already = chk && (store.entries || []).some((e) => e.sport_id === sp.id && e.date === d.date && e.id !== d.editId);
     const quick = (QUICK[sp.unit] || [5, 10, 20, 50]).map((v) => '<button type="button" class="pill' + (d.amount === v ? ' on' : '') + '" data-a="quick" data-v="' + v + '">' + v + '</button>').join('');
     return '<div class="panel">' +
-      '<div class="between"><h2 class="title">Nowy trening</h2>' + (where === 'sheet' ? '<button type="button" class="close" data-a="closeSheet" aria-label="Zamknij">' + ICON.x + '</button>' : '') + '</div>' +
+      '<div class="between"><h2 class="title">' + (d.editId ? 'Edytuj trening' : 'Nowy trening') + '</h2>' + (where === 'sheet' ? '<button type="button" class="close" data-a="closeSheet" aria-label="Zamknij">' + ICON.x + '</button>' : '') + '</div>' +
       '<div class="row" style="flex-wrap:wrap;gap:8px">' + datePill('Dziś', c.tk) + datePill('Wczoraj', yk) +
         '<label class="pill datepick' + (other ? ' on' : '') + '">' + (other ? parseKey(d.date).getDate() + ' ' + M_SHORT[parseKey(d.date).getMonth()] : 'Inna data') +
           '<input type="date" data-ch="date" max="' + c.tk + '" value="' + d.date + '" aria-label="Wybierz inną datę"></label></div>' +
@@ -558,7 +599,8 @@
           (sp.unit === 'x10' ? '<div class="x10hint">= <b>' + num(Math.round(d.amount * 100) / 10) + '</b> powtórzeń</div>' : '') +
           '<div class="quick">' + quick + '</div>' +
         '</div>') +
-      '<button type="button" class="btn big" data-a="save"' + (already ? ' disabled' : '') + '><span style="width:12px;height:12px;border-radius:4px;background:' + sp.color + '"></span>' + (chk ? 'Odhacz: ' + esc(sp.name) : 'Zapisz trening') + '</button>' +
+      '<button type="button" class="btn big" data-a="save"' + (already ? ' disabled' : '') + '><span style="width:12px;height:12px;border-radius:4px;background:' + sp.color + '"></span>' + (d.editId ? 'Zapisz zmiany' : chk ? 'Odhacz: ' + esc(sp.name) : 'Zapisz trening') + '</button>' +
+      (d.editId ? '<button type="button" class="btn ' + (d.confirmDel ? 'danger' : 'soft') + '" data-a="delEdited">' + (d.confirmDel ? 'Na pewno usunąć ten wpis?' : 'Usuń wpis') + '</button>' : '') +
       '</div>';
   }
 
@@ -734,6 +776,11 @@
     if (REMOTE && !ui.ready) root.innerHTML = '<div class="login"><div class="muted">Ładowanie…</div></div>';
     else if (REMOTE && !ui.session) root.innerHTML = viewLogin() + toastHtml();
     else root.innerHTML = viewApp();
+    const strip = root.querySelector('.dstrip');
+    if (strip) {
+      const on = strip.querySelector('.on') || strip.lastElementChild;
+      if (on) strip.scrollLeft = Math.max(0, on.offsetLeft - strip.offsetLeft - strip.clientWidth + on.offsetWidth + 24);
+    }
     if (id) {
       const el = document.getElementById(id);
       if (el) { el.focus({ preventScroll: true }); try { if (s1 != null) el.setSelectionRange(s1, s2); } catch (e) { /* */ } }
@@ -745,6 +792,7 @@
     const T = today();
     const k = date && parseKey(date) <= T ? date : dkey(T);
     ui.draft.date = k;
+    ui.draft.editId = null; ui.draft.confirmDel = false;
     const sp = sportMap()[ui.draft.sportId] || sportMap()[ui.lastSport] || sports()[0];
     if (sp) { ui.draft.sportId = sp.id; ui.draft.amount = (QUICK[sp.unit] || [10, 10])[1]; ui.draft.place = lastPlaceFor(sp); }
     ui.sheet = true;
@@ -756,7 +804,21 @@
   const A = {
     tab(d) { ui.tab = d.v; ui.edit = null; try { localStorage.setItem('halfway:tab', d.v); } catch (e) { /* */ } render(); window.scrollTo(0, 0); },
     open(d) { openSheet(d.date); },
-    closeSheet() { ui.sheet = false; render(); },
+    closeSheet() { ui.sheet = false; ui.draft.editId = null; ui.draft.confirmDel = false; render(); },
+    editEntry(d) {
+      const e = store.entries.find((x) => x.id === d.id);
+      if (!e) return;
+      Object.assign(ui.draft, { date: e.date, sportId: e.sport_id, amount: e.amount, place: e.place || null, editId: e.id, confirmDel: false });
+      ui.sheet = true; ui.sheetAnim = true; render(); ui.sheetAnim = false;
+    },
+    delEdited() {
+      const d = ui.draft;
+      if (!d.confirmDel) { d.confirmDel = true; render(); return; }
+      const id = d.editId;
+      ui.sheet = false; d.editId = null; d.confirmDel = false;
+      deleteEntry(id); showToast('Usunięto wpis');
+    },
+    editDay(d) { ui.editDay = d.k; render(); },
     pickDate(d) { ui.draft.date = d.v; render(); },
     pickSport(d) {
       const s = sportMap()[d.id];
@@ -776,12 +838,20 @@
       const date = ui.draft.date;
       const amt = isCheck(s) ? 1 : Number(ui.draft.amount);
       if (!(amt > 0)) { showToast('Wpisz ilość większą od zera', true); return; }
-      if (isCheck(s) && store.entries.some((e) => e.sport_id === s.id && e.date === date)) { showToast(s.name + ' już odhaczona tego dnia', true); return; }
+      if (isCheck(s) && store.entries.some((e) => e.sport_id === s.id && e.date === date && e.id !== ui.draft.editId)) { showToast(s.name + ' już odhaczona tego dnia', true); return; }
+      const place = s.places && s.places.indexOf(ui.draft.place) >= 0 ? ui.draft.place : null;
+      if (ui.draft.editId) {
+        const id = ui.draft.editId;
+        ui.sheet = false; ui.draft.editId = null; ui.draft.confirmDel = false;
+        updateEntry(id, { date: date, sport_id: s.id, amount: amt, place: place });
+        showToast('Zapisano zmiany: ' + s.name);
+        return;
+      }
       ui.lastSport = s.id;
       ui.sheet = false;
       ui.selDay = date;
       const dd = parseKey(date); ui.calY = dd.getFullYear(); ui.calM = dd.getMonth();
-      addEntry(date, s.id, amt, s.places && s.places.indexOf(ui.draft.place) >= 0 ? ui.draft.place : null);
+      addEntry(date, s.id, amt, place);
       const sh = shown(s, amt);
       showToast(isCheck(s) ? 'Odhaczono: ' + s.name : 'Zapisano: ' + s.name + ' · ' + sh.v + ' ' + sh.u);
     },
@@ -892,6 +962,7 @@
   };
   const CH = {
     date(v) { if (v && parseKey(v) <= today()) ui.draft.date = v; render(); },
+    editDay(v) { if (v && parseKey(v) < today()) ui.editDay = v; render(); },
     wdate(v) { if (v && parseKey(v) <= today()) ui.wDraft.date = v; render(); }
   };
 
@@ -934,7 +1005,8 @@
   document.addEventListener('change', (e) => { const k = e.target.dataset && e.target.dataset.ch; if (k && CH[k]) CH[k](e.target.value); });
   document.addEventListener('submit', (e) => { if (e.target.dataset.submit === 'auth') { e.preventDefault(); submitAuth(); } });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && ui.sheet) { ui.sheet = false; render(); }
+    if (e.key === 'Escape' && ui.sheet) { A.closeSheet(); }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('editable')) { e.preventDefault(); A.editEntry({ id: e.target.dataset.id }); }
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'amount') { e.preventDefault(); A.save(); }
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'wkg') { e.preventDefault(); A.saveWeight(); }
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'formPlace') { e.preventDefault(); A.addPlace(); }

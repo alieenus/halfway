@@ -248,3 +248,22 @@ h1, h2, h3 { margin: 0; }
 .tip { position: fixed; z-index: 80; pointer-events: none; background: var(--ink); color: #fff; border-radius: 12px; padding: 9px 12px; font-size: 12px; font-weight: 600; line-height: 1.45; max-width: 260px; box-shadow: 0 8px 20px rgba(0,0,0,.22); }
 .tip b { display: block; font-weight: 800; font-size: 13px; margin-bottom: 2px; }
 .tip[hidden] { display: none; }
+
+/* ---------- v4: ikony sportów, edycja innych dni ---------- */
+.sicon { display: block; width: 64%; height: 64%; background: currentColor; -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; }
+.stile .sw { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; }
+.stile .sw .sicon { width: 70%; height: 70%; }
+.stile { height: 78px; }
+.entry.editable { cursor: pointer; transition: box-shadow .15s; }
+.entry.editable:hover { box-shadow: inset 0 0 0 1.5px var(--line); }
+.dstrip { display: flex; gap: 6px; overflow-x: auto; margin: 0 -16px; padding: 2px 16px 4px; scrollbar-width: none; }
+.dstrip::-webkit-scrollbar { display: none; }
+.dchip { flex: none; width: 48px; height: 66px; border-radius: 14px; border: 1px solid var(--line); background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 0; }
+.dchip .dl { font-size: 11px; font-weight: 700; color: var(--muted); }
+.dchip .dn { font-size: 17px; font-weight: 800; font-family: var(--display); }
+.dchip .bar { width: 60%; height: 5px; border-radius: 3px; overflow: hidden; display: flex; background: var(--soft); }
+.dchip .bar span { flex: 1; display: block; }
+.dchip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.dchip.on .dl { color: #C9C5BD; }
+.edit-days { margin-top: 8px; padding-top: 18px; border-top: 1px solid var(--line); }
+@media (min-width: 900px) { .dstrip { margin: 0; padding: 2px 0 4px; flex-wrap: wrap; } }
