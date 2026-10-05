@@ -34,3 +34,18 @@ create policy "own sports" on public.sports
 
 create policy "own entries" on public.entries
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ===== v2: waga (raz w tygodniu) =====
+create table if not exists public.weights (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references auth.users on delete cascade,
+  date        date not null,
+  kg          numeric(5,1) not null check (kg > 0),
+  created_at  timestamptz not null default now(),
+  unique (user_id, date)
+);
+alter table public.weights enable row level security;
+drop policy if exists "own weights" on public.weights;
+create policy "own weights" on public.weights
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+grant select, insert, update, delete on public.weights to authenticated;

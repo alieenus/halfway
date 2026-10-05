@@ -11,19 +11,30 @@
       })
     : null;
 
-  const COLORS = ['#DC3B41', '#3E63DD', '#E0590A', '#2B9358', '#8E4EC6', '#0D8F99', '#C2357F', '#6B5E14'];
-  const UNITS = ['powt.', 'min', 'km'];
-  const QUICK = { 'powt.': [10, 25, 50, 100], 'min': [30, 45, 60, 90], 'km': [3, 5, 10, 20] };
-  const STEP = { 'powt.': 5, 'min': 5, 'km': 1 };
-  const UNIT_LONG = { 'powt.': 'powtórzenia', 'min': 'minuty', 'km': 'kilometry' };
+  // kolory sprawdzone walidatorem palety (rozróżnialne także przy daltonizmie, w parze z nazwami)
+  const C_GREEN = '#3DAA6A', C_BLUE = '#3E63DD', C_GOLD = '#B8860B', C_RED = '#DC3B41', C_PURPLE = '#A23CB8';
+  const COLORS = [C_GREEN, C_BLUE, C_GOLD, C_RED, C_PURPLE, '#0D8F99', '#E0590A', '#C2357F'];
+  // x10 = wpisujesz liczbę dziesiątek (4 = 40 powtórzeń); tak = trening był (min. 30 min)
+  const UNITS = ['x10', 'tak', 'powt.', 'min', 'km'];
+  const UNIT_LABEL = { 'x10': 'Liczba ×10', 'tak': 'Był / nie był', 'powt.': 'Powtórzenia', 'min': 'Minuty', 'km': 'Kilometry' };
+  const QUICK = { 'x10': [3, 4, 5, 10], 'powt.': [10, 25, 50, 100], 'min': [30, 45, 60, 90], 'km': [3, 5, 10, 20] };
+  const STEP = { 'x10': 1, 'powt.': 5, 'min': 5, 'km': 1 };
+  const UNIT_LONG = { 'x10': 'powtórzenia', 'tak': 'trening min. 30 min', 'powt.': 'powtórzenia', 'min': 'minuty', 'km': 'kilometry' };
+  const MIN_CHECK = 'min. 30 min';
   const DEFAULT_SPORTS = [
-    { name: 'Pompki', color: '#DC3B41', unit: 'powt.' },
-    { name: 'Przysiady', color: '#3E63DD', unit: 'powt.' },
-    { name: 'Koszykówka', color: '#E0590A', unit: 'min' },
-    { name: 'Piłka nożna', color: '#2B9358', unit: 'min' },
-    { name: 'Bieganie', color: '#8E4EC6', unit: 'km' },
-    { name: 'Rower', color: '#0D8F99', unit: 'km' }
+    { name: 'Pompki', color: C_GREEN, unit: 'x10' },
+    { name: 'Przysiady', color: C_BLUE, unit: 'x10' },
+    { name: 'Koszykówka', color: C_GOLD, unit: 'tak' },
+    { name: 'Piłka nożna', color: C_RED, unit: 'tak' },
+    { name: 'Rower', color: C_PURPLE, unit: 'tak' }
   ];
+  const isCheck = (s) => s && s.unit === 'tak';
+  // wartość do pokazania: { v: liczba lub '', u: jednostka }
+  function shown(s, amount) {
+    if (s.unit === 'x10') return { v: num(Math.round(amount * 10 * 10) / 10), u: 'powt.' };
+    if (s.unit === 'tak') return { v: '', u: '' };
+    return { v: num(amount), u: s.unit };
+  }
   const DAYS = ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota'];
   const DAYS_S = ['Nd', 'Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb'];
   const M_GEN = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
@@ -37,6 +48,8 @@
     list: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="7" r="2.2" fill="currentColor" stroke="none"/><circle cx="6" cy="12" r="2.2" fill="currentColor" stroke="none"/><circle cx="6" cy="17" r="2.2" fill="currentColor" stroke="none"/><path d="M11 7h9M11 12h9M11 17h9"/></svg>',
     plus: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
     minus: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg>',
+    scale: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="M8.5 9.5a5 5 0 0 1 7 0"/><path d="M12 9.8l1.3-2"/></svg>',
+    tick: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     x: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     flame: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5c.8 3.2 4.5 5.4 4.5 10a4.5 4.5 0 0 1-9 0c0-2.1 1-3.6 2.2-4.6.1 1.9 1 3 2.1 3.3-.4-3 .4-5.8.2-8.7z"/></svg>',
     left: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>',
@@ -63,7 +76,7 @@
 
   // ---------- dane (cache lokalny + kolejka zmian do wysłania) ----------
   const LS = 'halfway:data:v1';
-  const emptyStore = (owner) => ({ owner: owner || null, sports: [], entries: [], queue: [] });
+  const emptyStore = (owner) => ({ owner: owner || null, sports: [], entries: [], weights: [], queue: [] });
   let store = emptyStore();
   try {
     const s = JSON.parse(localStorage.getItem(LS));
@@ -105,6 +118,56 @@
     store.queue = store.queue.filter((op) => !(op.t === 'entries' && op.row && op.row.sport_id === id));
     enqueue({ t: 'sports', op: 'delete', id: id });
   }
+  const pushOp = (op) => { if (REMOTE) store.queue.push(op); };
+
+  // jednorazowa zmiana sportów (v2): pompki/przysiady ×10, gry zespołowe i rower = był/nie był, bez biegania
+  function migrateV2() {
+    const by = (n) => store.sports.find((x) => x.name.trim().toLowerCase() === n);
+    const p = by('pompki'), q = by('przysiady');
+    if (!((p && p.unit === 'powt.') || (q && q.unit === 'powt.'))) return false;
+    const change = (sp, patch) => {
+      if (!sp) return;
+      const old = sp.unit;
+      Object.assign(sp, patch);
+      pushOp({ t: 'sports', op: 'upsert', row: Object.assign({}, sp) });
+      store.entries.forEach((e) => {
+        if (e.sport_id !== sp.id) return;
+        let a = e.amount;
+        if (patch.unit === 'x10' && old === 'powt.') a = Math.max(0.1, Math.round(e.amount) / 10);
+        if (patch.unit === 'tak') a = 1;
+        if (a !== e.amount) { e.amount = a; pushOp({ t: 'entries', op: 'upsert', row: Object.assign({}, e) }); }
+      });
+    };
+    const run = by('bieganie');
+    if (run) {
+      store.sports = store.sports.filter((x) => x.id !== run.id);
+      store.entries = store.entries.filter((e) => e.sport_id !== run.id);
+      pushOp({ t: 'sports', op: 'delete', id: run.id });
+    }
+    change(p, { color: C_GREEN, unit: 'x10' });
+    change(q, { unit: 'x10' });
+    change(by('koszykówka'), { color: C_GOLD, unit: 'tak' });
+    change(by('piłka nożna'), { color: C_RED, unit: 'tak' });
+    change(by('rower'), { color: C_PURPLE, unit: 'tak' });
+    saveLocal();
+    return true;
+  }
+
+  // ---------- waga ----------
+  function setWeight(date, kg) {
+    const ex = store.weights.find((w) => w.date === date);
+    const row = ex ? Object.assign(ex, { kg: kg }) : { id: uuid(), date: date, kg: kg };
+    if (!ex) store.weights.push(row);
+    enqueue({ t: 'weights', op: 'upsert', row: Object.assign({}, row) });
+  }
+  function deleteWeight(id) {
+    store.weights = store.weights.filter((w) => w.id !== id);
+    enqueue({ t: 'weights', op: 'delete', id: id });
+  }
+  const weightsSorted = () => store.weights.slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const kgFmt = (v) => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+  const mondayOf = (d) => addDays(d, -((d.getDay() + 6) % 7));
+
   function seedDefaults() {
     DEFAULT_SPORTS.forEach((s) => addSport(s.name, s.color, s.unit, true));
     saveLocal(); render(); flush();
@@ -117,12 +180,17 @@
   async function flush() {
     if (!REMOTE || !ui.session || flushing || !navigator.onLine) return;
     flushing = true;
+    const parked = [];
     try {
       while (store.queue.length) {
         const op = store.queue[0];
         const res = op.op === 'upsert'
           ? await sb.from(op.t).upsert(op.row)
           : await sb.from(op.t).delete().eq('id', op.id);
+        if (res.error && /PGRST205|42P01/.test(res.error.code || '')) {
+          // tabela jeszcze nie istnieje (np. waga przed uruchomieniem SQL) – zachowaj wpis na później
+          ui.weightsMissing = true; parked.push(store.queue.shift()); continue;
+        }
         if (res.error) {
           if (isNetworkError(res.error)) break;
           console.error('HalfWay sync', res.error);
@@ -132,6 +200,7 @@
         saveLocal();
       }
     } catch (e) { /* brak sieci – spróbujemy później */ }
+    if (parked.length) { store.queue = parked.concat(store.queue); saveLocal(); }
     flushing = false;
     render();
   }
@@ -150,7 +219,8 @@
 
   async function pull() {
     if (!REMOTE || !ui.session || ui.syncing) return;
-    if (store.queue.length) { await flush(); if (store.queue.length) return; }
+    const blocking = () => store.queue.some((op) => !(op.t === 'weights' && ui.weightsMissing));
+    if (store.queue.length) { await flush(); if (blocking()) return; }
     ui.syncing = true; render();
     try {
       const sp = await sb.from('sports').select('id,name,color,unit,position').order('position');
@@ -164,12 +234,16 @@
         if (r.data.length < size) break;
         from += size;
       }
+      const w = await sb.from('weights').select('id,date,kg').order('date');
+      ui.weightsMissing = !!w.error;
       store.sports = sp.data;
       store.entries = entries.map((e) => Object.assign({}, e, { amount: Number(e.amount) }));
+      if (!w.error) store.weights = w.data.map((x) => Object.assign({}, x, { kg: Number(x.kg) }));
       applyQueue();
       saveLocal();
       ui.syncing = false;
       if (!store.sports.length) seedDefaults();
+      else if (migrateV2()) { render(); flush(); }
     } catch (e) {
       console.warn('HalfWay pull', e);
     }
@@ -183,9 +257,10 @@
     tab: 'today', filter: 'all',
     calY: t0.getFullYear(), calM: t0.getMonth(), selDay: dkey(t0),
     sheet: false,
-    draft: { date: dkey(t0), sportId: null, amount: 50 },
+    draft: { date: dkey(t0), sportId: null, amount: 4 },
+    wDraft: { date: dkey(t0), kg: null }, wSel: null, weightsMissing: false,
     toast: null,
-    newSport: { name: '', unit: 'powt.', color: COLORS[6] },
+    newSport: { name: '', unit: 'x10', color: COLORS[5] },
     edit: null,
     session: null, ready: !REMOTE, syncing: false,
     auth: { mode: 'login', email: '', pass: '', busy: false, msg: '', err: false }
@@ -246,8 +321,10 @@
     return '<div class="entry' + (compact ? ' compact' : '') + '">' +
       '<div class="badge' + (compact ? ' s' : '') + '" style="background:' + s.color + '">' + esc(s.name.charAt(0)) + '</div>' +
       '<div style="flex:1;min-width:0"><div class="name">' + esc(s.name) + '</div>' +
-      (compact ? '' : '<div class="small">' + esc(UNIT_LONG[s.unit] || s.unit) + '</div>') + '</div>' +
-      '<div class="amt">' + num(e.amount) + '<small>' + esc(s.unit) + '</small></div>' +
+      (compact ? '' : '<div class="small">' + esc(s.unit === 'x10' ? num(e.amount) + ' × 10' : (UNIT_LONG[s.unit] || s.unit)) + '</div>') + '</div>' +
+      (isCheck(s)
+        ? '<div class="done" style="--c:' + s.color + '">' + ICON.tick + 'Był</div>'
+        : '<div class="amt">' + shown(s, e.amount).v + '<small>' + esc(shown(s, e.amount).u) + '</small></div>') +
       '<button type="button" class="icon-btn" data-a="delEntry" data-id="' + e.id + '" aria-label="Usuń wpis: ' + esc(s.name) + '">' + ICON.x + '</button>' +
       '</div>';
   }
@@ -267,7 +344,7 @@
           '<div class="rec">Rekord<b>' + c.best + ' ' + plural(c.best, 'dzień', 'dni', 'dni') + '</b></div>' +
         '</div>' +
         '<div class="week">' + week + '</div>' +
-      '</section>' +
+      '</section>' + weightCard(c) +
       '<section class="stack-s">' +
         '<div class="between"><h2 class="h2">Twój trening</h2><div class="small" style="font-size:13px">' + n + ' ' + plural(n, 'aktywność', 'aktywności', 'aktywności') + '</div></div>' +
         (n === 0
@@ -356,13 +433,14 @@
     const e = ui.edit;
     const f = e || ui.newSport;
     const pre = e ? 'edit' : 'new';
-    const units = UNITS.map((u) => '<button type="button" class="pill' + (f.unit === u ? ' on' : '') + '" data-a="formUnit" data-v="' + u + '">' + u + '</button>').join('');
+    const units = UNITS.map((u) => '<button type="button" class="pill' + (f.unit === u ? ' on' : '') + '" data-a="formUnit" data-v="' + u + '">' + UNIT_LABEL[u] + '</button>').join('');
     const cols = COLORS.map((col, i) => '<button type="button" class="swatch' + (f.color === col ? ' on' : '') + '" style="background:' + col + ';--c:' + col + '" data-a="formColor" data-v="' + col + '" aria-label="Kolor ' + (i + 1) + '"></button>').join('');
     return '<section class="card stack" id="sport-form" style="gap:16px">' +
       '<div class="between"><h2 class="h2">' + (e ? 'Edytuj sport' : 'Nowy sport') + '</h2>' +
       (e ? '<button type="button" class="close" data-a="cancelEdit" aria-label="Anuluj">' + ICON.x + '</button>' : '') + '</div>' +
       '<div class="field"><label for="in-' + pre + '-name">Nazwa</label><input class="input" id="in-' + pre + '-name" data-in="formName" type="text" placeholder="np. Pływanie" maxlength="40" value="' + esc(f.name) + '"></div>' +
-      '<div class="field"><span class="lab">Jednostka</span><div class="seg">' + units + '</div></div>' +
+      '<div class="field"><span class="lab">Jak liczysz</span><div class="seg wrap">' + units + '</div>' +
+        '<div class="small" style="font-weight:600">' + ({ x10: 'Wpisujesz liczbę dziesiątek: 4 = 40 powtórzeń.', tak: 'Odhaczasz, że trening był (' + MIN_CHECK + ').' }[f.unit] || '') + '</div></div>' +
       '<div class="field"><span class="lab">Kolor</span><div class="swatches">' + cols + '</div></div>' +
       (e
         ? '<div class="stack-s"><button type="button" class="btn" data-a="saveEdit">Zapisz zmiany</button>' +
@@ -374,12 +452,13 @@
   function viewSports(c) {
     const rows = sports().map((s) => {
       const es = store.entries.filter((e) => e.sport_id === s.id && e.date.indexOf(c.monthPrefix) === 0);
-      const total = es.reduce((a, e) => a + Number(e.amount), 0);
+      const sum = es.reduce((a, e) => a + Number(e.amount), 0);
+      const tot = isCheck(s) ? { v: num(es.length), u: plural(es.length, 'raz', 'razy', 'razy') } : shown(s, sum);
       return '<button type="button" class="sport-row" data-a="editSport" data-id="' + s.id + '" aria-label="Edytuj ' + esc(s.name) + '">' +
         '<span class="badge" style="width:42px;height:42px;border-radius:12px;font-size:19px;background:' + s.color + '">' + esc(s.name.charAt(0)) + '</span>' +
         '<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-weight:800;font-size:15px">' + esc(s.name) + '</span>' +
         '<span class="small">' + es.length + ' ' + plural(es.length, 'trening', 'treningi', 'treningów') + ' w ' + M_LOC[c.T.getMonth()] + '</span></span>' +
-        '<span class="tot"><b>' + num(total) + '</b><span class="small">' + esc(s.unit) + '</span></span></button>';
+        '<span class="tot"><b>' + tot.v + '</b><span class="small">' + esc(tot.u) + '</span></span></button>';
     }).join('');
     const email = ui.session ? ui.session.user.email : '';
     const account = '<section class="card stack-s">' +
@@ -410,6 +489,8 @@
         (on ? ' style="background:' + s.color + '1F;box-shadow:inset 0 0 0 2px ' + s.color + '"' : '') + '>' +
         '<span class="sw" style="background:' + s.color + '"></span><span class="nm">' + esc(s.name) + '</span></button>';
     }).join('');
+    const chk = isCheck(sp);
+    const already = chk && (store.entries || []).some((e) => e.sport_id === sp.id && e.date === d.date);
     const quick = (QUICK[sp.unit] || [5, 10, 20, 50]).map((v) => '<button type="button" class="pill' + (d.amount === v ? ' on' : '') + '" data-a="quick" data-v="' + v + '">' + v + '</button>').join('');
     return '<div class="panel">' +
       '<div class="between"><h2 class="title">Nowy trening</h2>' + (where === 'sheet' ? '<button type="button" class="close" data-a="closeSheet" aria-label="Zamknij">' + ICON.x + '</button>' : '') + '</div>' +
@@ -417,17 +498,136 @@
         '<label class="pill datepick' + (other ? ' on' : '') + '">' + (other ? parseKey(d.date).getDate() + ' ' + M_SHORT[parseKey(d.date).getMonth()] : 'Inna data') +
           '<input type="date" data-ch="date" max="' + c.tk + '" value="' + d.date + '" aria-label="Wybierz inną datę"></label></div>' +
       '<div class="field"><span class="lab">Co trenowałeś?</span><div class="sgrid">' + tiles + '</div></div>' +
-      '<div class="stack-s">' +
-        '<div class="stepper"><button type="button" class="pm" data-a="minus" aria-label="Mniej">' + ICON.minus + '</button>' +
-          '<div style="display:flex;align-items:baseline;gap:4px"><input id="amt-' + where + '" data-in="amount" type="number" inputmode="decimal" min="0" step="any" value="' + d.amount + '" aria-label="Ilość" style="color:' + sp.color + ';width:' + amtWidth(d.amount) + '"><span class="u">' + esc(sp.unit) + '</span></div>' +
-          '<button type="button" class="pm" data-a="plus" aria-label="Więcej">' + ICON.plus + '</button></div>' +
-        '<div class="quick">' + quick + '</div>' +
-      '</div>' +
-      '<button type="button" class="btn big" data-a="save"><span style="width:12px;height:12px;border-radius:4px;background:' + sp.color + '"></span>Zapisz trening</button>' +
+      (chk
+        ? '<div class="checkbox-info" style="--c:' + sp.color + '"><span class="ci">' + ICON.tick + '</span><div><b>' + (already ? 'Już odhaczone tego dnia' : 'Trening się odbył?') + '</b>' +
+          '<div>Odhacz, jeśli trenowałeś ' + MIN_CHECK + '.</div></div></div>'
+        : '<div class="stack-s">' +
+          '<div class="stepper"><button type="button" class="pm" data-a="minus" aria-label="Mniej">' + ICON.minus + '</button>' +
+            '<div style="display:flex;align-items:baseline;gap:4px"><input id="amt-' + where + '" data-in="amount" type="number" inputmode="decimal" min="0" step="any" value="' + d.amount + '" aria-label="Ilość" style="color:' + sp.color + ';width:' + amtWidth(d.amount) + '"><span class="u">' + (sp.unit === 'x10' ? '× 10' : esc(sp.unit)) + '</span></div>' +
+            '<button type="button" class="pm" data-a="plus" aria-label="Więcej">' + ICON.plus + '</button></div>' +
+          (sp.unit === 'x10' ? '<div class="x10hint">= <b>' + num(Math.round(d.amount * 100) / 10) + '</b> powtórzeń</div>' : '') +
+          '<div class="quick">' + quick + '</div>' +
+        '</div>') +
+      '<button type="button" class="btn big" data-a="save"' + (already ? ' disabled' : '') + '><span style="width:12px;height:12px;border-radius:4px;background:' + sp.color + '"></span>' + (chk ? 'Odhacz: ' + esc(sp.name) : 'Zapisz trening') + '</button>' +
       '</div>';
   }
 
   function amtWidth(v) { return (Math.max(1, String(v).length) * 0.62 + 0.1).toFixed(2) + 'em'; }
+
+  const lastKg = () => { const w = weightsSorted(); return w.length ? w[w.length - 1].kg : null; };
+
+  function weightNeeded(c) {
+    // koniec weekendu: sobota, niedziela, a w poniedziałek przypomnienie za miniony tydzień
+    const dow = c.T.getDay();
+    if (dow !== 6 && dow !== 0 && dow !== 1) return null;
+    const refDay = dow === 1 ? addDays(c.T, -1) : c.T;
+    const mon = dkey(mondayOf(refDay)), sun = dkey(addDays(mondayOf(refDay), 6));
+    const has = store.weights.some((w) => w.date >= mon && w.date <= sun);
+    return has ? null : { date: dkey(refDay), late: dow === 1 };
+  }
+
+  function weightForm(c, compact, sfx) {
+    const d = ui.wDraft;
+    const base = d.kg != null ? d.kg : (lastKg() || '');
+    const yk = dkey(addDays(c.T, -1));
+    const other = d.date !== c.tk && d.date !== yk;
+    const pill = (label, k) => '<button type="button" class="pill' + (d.date === k ? ' on' : '') + '" data-a="wPickDate" data-v="' + k + '">' + label + '</button>';
+    const exists = store.weights.find((w) => w.date === d.date);
+    return '<div class="stack-s" style="gap:14px">' +
+      (compact ? '' : '<div class="row" style="flex-wrap:wrap;gap:8px">' + pill('Dziś', c.tk) + pill('Wczoraj', yk) +
+        '<label class="pill datepick' + (other ? ' on' : '') + '">' + (other ? parseKey(d.date).getDate() + ' ' + M_SHORT[parseKey(d.date).getMonth()] : 'Inna data') +
+        '<input type="date" data-ch="wdate" max="' + c.tk + '" value="' + d.date + '" aria-label="Wybierz datę pomiaru"></label></div>') +
+      '<div class="stepper"><button type="button" class="pm" data-a="wMinus" aria-label="Mniej o 0,1 kg">' + ICON.minus + '</button>' +
+        '<div style="display:flex;align-items:baseline;gap:6px"><input id="wkg-' + sfx + '" data-in="wkg" type="text" inputmode="decimal" placeholder="82,4" value="' + (base === '' ? '' : kgFmt(base)) + '" aria-label="Waga w kg" style="width:3.2em"><span class="u">kg</span></div>' +
+        '<button type="button" class="pm" data-a="wPlus" aria-label="Więcej o 0,1 kg">' + ICON.plus + '</button></div>' +
+      '<button type="button" class="btn big" data-a="saveWeight">' + (exists ? 'Zaktualizuj wagę' : 'Zapisz wagę') + '</button>' +
+      '</div>';
+  }
+
+  function weightCard(c) {
+    const need = weightNeeded(c);
+    if (need) {
+      ui.wDraft.date = ui.wDraft.date === c.tk || ui.wDraft.date === need.date ? need.date : ui.wDraft.date;
+      return '<section class="card stack-s weigh-card" style="gap:12px">' +
+        '<div class="row"><span class="wico">' + ICON.scale + '</span><div><div style="font-weight:800;font-size:16px">' + (need.late ? 'Zapisz wagę z weekendu' : 'Koniec weekendu – czas na ważenie') + '</div>' +
+        '<div class="muted" style="font-size:13px">Raz w tygodniu, najlepiej rano na czczo.</div></div></div>' +
+        weightForm(c, true, 'today') + '</section>';
+    }
+    const w = weightsSorted();
+    if (!w.length) return '';
+    const last = w[w.length - 1], prev = w[w.length - 2];
+    const diff = prev ? last.kg - prev.kg : null;
+    return '<button type="button" class="card weigh-mini" data-a="tab" data-v="weight">' +
+      '<span class="wico">' + ICON.scale + '</span><span style="flex:1;text-align:left"><span class="small" style="display:block">Waga · ' + parseKey(last.date).getDate() + ' ' + M_SHORT[parseKey(last.date).getMonth()] + '</span>' +
+      '<b style="font-family:var(--display);font-size:22px">' + kgFmt(last.kg) + ' kg</b></span>' +
+      (diff != null ? '<span class="delta">' + (diff > 0 ? '+' : diff < 0 ? '−' : '±') + kgFmt(Math.abs(diff)) + ' kg</span>' : '') + ICON.right + '</button>';
+  }
+
+  function weightChart(w) {
+    const pts = w.slice(-26);
+    if (pts.length < 2) return '<div class="muted">Wykres pojawi się po drugim pomiarze.</div>';
+    const W = Math.max(280, Math.min(window.innerWidth >= 900 ? Math.min(window.innerWidth - 240, 1080) - 80 - 400 - 28 - 36 : Math.min(window.innerWidth, 640) - 64, 900));
+    const H = 190, padL = 40, padR = 52, padT = 18, padB = 26;
+    let lo = Math.min.apply(null, pts.map((p) => p.kg)), hi = Math.max.apply(null, pts.map((p) => p.kg));
+    lo = Math.floor(lo - 0.5); hi = Math.ceil(hi + 0.5);
+    if (hi - lo < 2) { hi += 1; lo -= 1; }
+    const t0 = parseKey(pts[0].date).getTime(), t1 = parseKey(pts[pts.length - 1].date).getTime();
+    const x = (p) => padL + (W - padL - padR) * ((parseKey(p.date).getTime() - t0) / Math.max(1, t1 - t0));
+    const y = (kg) => padT + (H - padT - padB) * (1 - (kg - lo) / (hi - lo));
+    const grid = [lo, (lo + hi) / 2, hi].map((g) => '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(g) + '" y2="' + y(g) + '" stroke="#E7E3DC" stroke-width="1"/>' +
+      '<text x="' + (padL - 8) + '" y="' + (y(g) + 4) + '" text-anchor="end" font-size="11" font-weight="700" fill="#6B675F">' + kgFmt(g).replace(',0', '') + '</text>').join('');
+    const line = pts.map((p, i) => (i ? 'L' : 'M') + x(p).toFixed(1) + ' ' + y(p.kg).toFixed(1)).join(' ');
+    const lastP = pts[pts.length - 1];
+    const fmtD = (p) => parseKey(p.date).getDate() + ' ' + M_SHORT[parseKey(p.date).getMonth()];
+    const dots = pts.map((p) => {
+      const sel = ui.wSel === p.id;
+      return '<g class="wpt" data-a="wpt" data-id="' + p.id + '" role="button" tabindex="0" aria-label="' + fmtD(p) + ': ' + kgFmt(p.kg) + ' kg">' +
+        '<circle cx="' + x(p) + '" cy="' + y(p.kg) + '" r="16" fill="transparent"/>' +
+        '<circle cx="' + x(p) + '" cy="' + y(p.kg) + '" r="' + (sel ? 6 : 4) + '" fill="#17171B" stroke="#fff" stroke-width="2"/></g>';
+    }).join('');
+    const selP = pts.find((p) => p.id === ui.wSel);
+    const tip = selP
+      ? (function () {
+          const tx = Math.min(Math.max(x(selP), padL + 50), W - padR - 10), ty = Math.max(y(selP.kg) - 14, 14);
+          return '<g pointer-events="none"><rect x="' + (tx - 52) + '" y="' + (ty - 22) + '" width="104" height="24" rx="8" fill="#17171B"/>' +
+            '<text x="' + tx + '" y="' + (ty - 6) + '" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">' + fmtD(selP) + ' · ' + kgFmt(selP.kg) + ' kg</text></g>';
+        })()
+      : '';
+    return '<svg class="wchart" viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Wykres wagi z ' + pts.length + ' pomiarów">' + grid +
+      '<path d="' + line + '" fill="none" stroke="#17171B" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' + dots +
+      '<text x="' + (x(lastP) + 10) + '" y="' + (y(lastP.kg) + 4) + '" font-size="12" font-weight="800" fill="#17171B">' + kgFmt(lastP.kg) + '</text>' +
+      '<text x="' + padL + '" y="' + (H - 6) + '" font-size="11" font-weight="700" fill="#6B675F">' + fmtD(pts[0]) + '</text>' +
+      '<text x="' + (W - padR) + '" y="' + (H - 6) + '" text-anchor="end" font-size="11" font-weight="700" fill="#6B675F">' + fmtD(lastP) + '</text>' +
+      tip + '</svg>';
+  }
+
+  function viewWeight(c) {
+    const w = weightsSorted();
+    const last = w[w.length - 1], prev = w[w.length - 2], first = w[0];
+    const sign = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + kgFmt(Math.abs(v)) + ' kg';
+    const hero = last
+      ? '<section class="card stack-s" style="gap:6px"><span class="small">Aktualna waga · ' + parseKey(last.date).getDate() + ' ' + M_GEN[parseKey(last.date).getMonth()] + '</span>' +
+        '<div style="font-family:var(--display);font-size:56px;font-weight:800;letter-spacing:-0.03em;line-height:1">' + kgFmt(last.kg) + '<span style="font-size:20px;color:var(--muted);margin-left:6px">kg</span></div>' +
+        '<div class="row" style="flex-wrap:wrap;gap:8px;margin-top:6px">' +
+          (prev ? '<span class="delta">' + sign(last.kg - prev.kg) + ' od poprzedniego</span>' : '') +
+          (first && first !== last ? '<span class="delta">' + sign(last.kg - first.kg) + ' od ' + parseKey(first.date).getDate() + ' ' + M_SHORT[parseKey(first.date).getMonth()] + '</span>' : '') +
+        '</div></section>'
+      : '<section class="empty"><div style="font-weight:800;font-size:16px">Brak pomiarów</div><div class="muted">Zapisz pierwszą wagę – potem raz w tygodniu, na koniec weekendu.</div></section>';
+    const rows = w.slice().reverse().map((x, i, arr) => {
+      const p = arr[i + 1];
+      return '<div class="entry compact"><div style="flex:1;min-width:0"><div class="name">' + esc(longDate(parseKey(x.date))) + '</div>' +
+        (p ? '<div class="small">' + sign(x.kg - p.kg) + '</div>' : '<div class="small">pierwszy pomiar</div>') + '</div>' +
+        '<div class="amt">' + kgFmt(x.kg) + '<small>kg</small></div>' +
+        '<button type="button" class="icon-btn" data-a="delWeight" data-id="' + x.id + '" aria-label="Usuń pomiar z ' + esc(x.date) + '">' + ICON.x + '</button></div>';
+    }).join('');
+    return '<div class="top"><h1 class="h1">Waga</h1>' + syncBadge() + '</div>' +
+      (ui.weightsMissing ? '<div class="banner">Tabela wagi nie jest jeszcze utworzona w Supabase – uruchom SQL z instrukcji, a pomiary zapiszą się w chmurze.</div>' : '') +
+      '<div class="sports-grid"><div class="stack">' + hero +
+        '<section class="card stack mob-only" style="gap:14px"><h2 class="h2">Nowy pomiar</h2>' + weightForm(c, false, 'm') + '</section>' +
+        (w.length ? '<section class="card stack-s"><h2 class="h2" style="font-size:19px">Wykres</h2>' + weightChart(w) + '</section>' : '') +
+        (w.length ? '<section class="stack-s"><h2 class="h2">Pomiary</h2>' + rows + '</section>' : '') +
+      '</div><div class="desk-only"><section class="card stack" style="gap:14px"><h2 class="h2">Nowy pomiar</h2>' + weightForm(c, false, 'd') + '</section></div></div>';
+  }
 
   function viewLogin() {
     const a = ui.auth, login = a.mode === 'login';
@@ -455,14 +655,14 @@
   function viewApp() {
     const c = compute();
     const tab = ui.tab;
-    const body = tab === 'history' ? viewHistory(c) : tab === 'sports' ? viewSports(c) : viewToday(c);
-    const nav = [['today', 'Dziś', ICON.cal], ['history', 'Ciągłość', ICON.grid], ['sports', 'Sporty', ICON.list]];
+    const body = tab === 'history' ? viewHistory(c) : tab === 'sports' ? viewSports(c) : tab === 'weight' ? viewWeight(c) : viewToday(c);
+    const nav = [['today', 'Dziś', ICON.cal], ['history', 'Ciągłość', ICON.grid], ['weight', 'Waga', ICON.scale], ['sports', 'Sporty', ICON.list]];
     const sidebar = '<aside class="sidebar"><div class="brand"><span class="logo"><span style="background:#DC3B41"></span><span style="background:#3E63DD"></span><span style="background:#E0590A"></span><span style="background:#2B9358"></span></span>HalfWay</div>' +
       nav.map((n) => '<button type="button" class="nav' + (tab === n[0] ? ' on' : '') + '" data-a="tab" data-v="' + n[0] + '">' + n[2] + n[1] + '</button>').join('') +
       '<div class="foot">' + (tab !== 'today' ? '<button type="button" class="btn" data-a="open">' + ICON.plus + 'Dodaj trening</button>' : '') + '</div></aside>';
     const tabbar = '<nav class="tabbar" aria-label="Nawigacja">' +
       nav.map((n) => '<button type="button" class="' + (tab === n[0] ? 'on' : '') + '" data-a="tab" data-v="' + n[0] + '">' + n[2] + n[1] + '</button>').join('') + '</nav>';
-    const fab = tab !== 'sports' ? '<button type="button" class="fab" data-a="open" aria-label="Dodaj trening">' + ICON.plus + '</button>' : '';
+    const fab = tab !== 'sports' && tab !== 'weight' ? '<button type="button" class="fab" data-a="open" aria-label="Dodaj trening">' + ICON.plus + '</button>' : '';
     const sheet = ui.sheet
       ? '<div class="overlay' + (ui.sheetAnim ? ' anim' : '') + '"><button type="button" class="backdrop" data-a="closeSheet" aria-label="Zamknij"></button><div class="sheet" role="dialog" aria-label="Nowy trening"><div class="grab"></div>' + addPanel(c, 'sheet') + '</div></div>'
       : '';
@@ -520,16 +720,18 @@
     quick(d) { ui.draft.amount = Number(d.v); render(); },
     save() {
       const s = sportMap()[ui.draft.sportId];
-      const amt = Number(ui.draft.amount);
       if (!s) return;
-      if (!(amt > 0)) { showToast('Wpisz ilość większą od zera', true); return; }
       const date = ui.draft.date;
+      const amt = isCheck(s) ? 1 : Number(ui.draft.amount);
+      if (!(amt > 0)) { showToast('Wpisz ilość większą od zera', true); return; }
+      if (isCheck(s) && store.entries.some((e) => e.sport_id === s.id && e.date === date)) { showToast(s.name + ' już odhaczona tego dnia', true); return; }
       ui.lastSport = s.id;
       ui.sheet = false;
       ui.selDay = date;
       const dd = parseKey(date); ui.calY = dd.getFullYear(); ui.calM = dd.getMonth();
       addEntry(date, s.id, amt);
-      showToast('Zapisano: ' + s.name + ' · ' + num(amt) + ' ' + s.unit);
+      const sh = shown(s, amt);
+      showToast(isCheck(s) ? 'Odhaczono: ' + s.name : 'Zapisano: ' + s.name + ' · ' + sh.v + ' ' + sh.u);
     },
     delEntry(d) { deleteEntry(d.id); showToast('Usunięto wpis'); },
     filter(d) { ui.filter = d.id; render(); },
@@ -581,7 +783,8 @@
       const rows = [['data', 'sport', 'ilosc', 'jednostka']].concat(
         store.entries.slice().sort((a, b) => (a.date < b.date ? -1 : 1))
           .filter((e) => m[e.sport_id])
-          .map((e) => [e.date, m[e.sport_id].name, String(e.amount).replace('.', ','), m[e.sport_id].unit]));
+          .map((e) => { const sp = m[e.sport_id]; const sh = shown(sp, e.amount); return [e.date, sp.name, isCheck(sp) ? 'tak' : sh.v, isCheck(sp) ? MIN_CHECK : sh.u]; })
+          .concat(weightsSorted().map((w) => [w.date, 'Waga', kgFmt(w.kg), 'kg'])));
       const csv = '﻿' + rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(';')).join('\n');
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -595,18 +798,39 @@
       ui.auth = { mode: 'login', email: '', pass: '', busy: false, msg: '', err: false };
       render();
     },
+    wPickDate(d) { ui.wDraft.date = d.v; render(); },
+    wMinus() { ui.wDraft.kg = Math.round(((ui.wDraft.kg || lastKg() || 80) - 0.1) * 10) / 10; render(); },
+    wPlus() { ui.wDraft.kg = Math.round(((ui.wDraft.kg || lastKg() || 80) + 0.1) * 10) / 10; render(); },
+    saveWeight() {
+      const kg = Number(ui.wDraft.kg || lastKg());
+      if (!(kg > 20 && kg < 400)) { showToast('Wpisz wagę w kg, np. 82,4', true); return; }
+      setWeight(ui.wDraft.date, Math.round(kg * 10) / 10);
+      ui.wDraft = { date: dkey(today()), kg: null };
+      showToast('Zapisano wagę: ' + kgFmt(kg) + ' kg');
+    },
+    delWeight(d) { deleteWeight(d.id); showToast('Usunięto pomiar'); },
+    wpt(d) { ui.wSel = ui.wSel === d.id ? null : d.id; render(); },
     hintOff() { try { localStorage.setItem('halfway:hint-off', '1'); } catch (e) { /* */ } render(); },
     authMode() { ui.auth.mode = ui.auth.mode === 'login' ? 'signup' : 'login'; ui.auth.msg = ''; render(); }
   };
 
   const IN = {
-    amount(v, el) { ui.draft.amount = parseFloat(String(v).replace(',', '.')) || 0; if (el) el.style.width = amtWidth(v); },
+    amount(v, el) {
+      ui.draft.amount = parseFloat(String(v).replace(',', '.')) || 0;
+      if (el) {
+        el.style.width = amtWidth(v);
+        const h = el.closest('.stack-s') && el.closest('.stack-s').querySelector('.x10hint b');
+        if (h) h.textContent = num(Math.round(ui.draft.amount * 100) / 10);
+      }
+    },
+    wkg(v) { ui.wDraft.kg = parseFloat(String(v).replace(',', '.')) || null; },
     formName(v) { (ui.edit || ui.newSport).name = v; },
     email(v) { ui.auth.email = v.trim(); },
     pass(v) { ui.auth.pass = v; }
   };
   const CH = {
-    date(v) { if (v && parseKey(v) <= today()) ui.draft.date = v; render(); }
+    date(v) { if (v && parseKey(v) <= today()) ui.draft.date = v; render(); },
+    wdate(v) { if (v && parseKey(v) <= today()) ui.wDraft.date = v; render(); }
   };
 
   const AUTH_ERRORS = {
@@ -650,6 +874,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && ui.sheet) { ui.sheet = false; render(); }
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'amount') { e.preventDefault(); A.save(); }
+    if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'wkg') { e.preventDefault(); A.saveWeight(); }
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'formName') { e.preventDefault(); ui.edit ? A.saveEdit() : A.addSport(); }
   });
   document.addEventListener('click', (e) => {
@@ -680,7 +905,8 @@
     sb.auth.onAuthStateChange((ev, session) => { setSession(session); });
   } else {
     if (store.owner !== 'local') { store = emptyStore('local'); }
-    if (!store.sports.length) seedDefaults(); else render();
+    if (!Array.isArray(store.weights)) store.weights = [];
+    if (!store.sports.length) seedDefaults(); else { migrateV2(); render(); }
   }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
