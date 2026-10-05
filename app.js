@@ -56,6 +56,7 @@
   const M_SHORT = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
 
   const ICON = {
+    chart: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><rect x="5.5" y="11" width="3" height="6" rx="1" fill="currentColor" stroke="none"/><rect x="10.5" y="6" width="3" height="11" rx="1" fill="currentColor" stroke="none"/><rect x="15.5" y="13" width="3" height="4" rx="1" fill="currentColor" stroke="none"/></svg>',
     pin: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>',
     cal: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/><rect x="8" y="13" width="4" height="4" rx="1" fill="currentColor" stroke="none"/></svg>',
     grid: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2" fill="currentColor"/><rect x="3.5" y="13.5" width="7" height="7" rx="2" fill="currentColor"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>',
@@ -305,6 +306,7 @@
     calY: t0.getFullYear(), calM: t0.getMonth(), selDay: dkey(t0),
     sheet: false,
     draft: { date: dkey(t0), sportId: null, amount: 4 },
+    stSport: 'all', stPeriod: 'w',
     wDraft: { date: dkey(t0), kg: null }, editDay: dkey(addDays(t0, -1)), wSel: null, weightsMissing: false,
     toast: null,
     newSport: { name: '', unit: 'x10', color: COLORS[5], places: [] },
@@ -721,6 +723,188 @@
       '</div><div class="desk-only"><section class="card stack" style="gap:14px"><h2 class="h2">Nowy pomiar</h2>' + weightForm(c, false, 'd') + '</section></div></div>';
   }
 
+  // ---------- statystyki ----------
+  const metricOf = (sp, e) => (sp.unit === 'x10' ? e.amount * 10 : sp.unit === 'tak' ? 1 : Number(e.amount));
+  const fmtInt = (v) => (Math.round(v * 10) / 10).toLocaleString('pl-PL');
+  function niceScale(maxV) {
+    if (maxV <= 0) return { max: 4, step: 1 };
+    const raw = maxV / 4, p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 5, 10].map((m) => m * p).find((s) => s >= raw) || 10 * p;
+    const st = Math.max(step, 1);
+    return { max: Math.ceil(maxV / st) * st, step: st };
+  }
+  function statW(half) {
+    const w = window.innerWidth;
+    const content = w >= 900 ? Math.min(w - 240, 1080) - 80 : Math.min(w, 640) - 32;
+    return Math.max(260, Math.floor((half && w >= 900 ? (content - 20) / 2 : content) - 36));
+  }
+
+  // kolumny (opcjonalnie skumulowane); buckets: [{label, cur, segs:[{v,color}], tip}]
+  function colChart(buckets, opt) {
+    const W = opt.W, H = opt.H || 210, padL = 34, padR = 6, padT = 22, padB = 24;
+    const totals = buckets.map((b) => b.segs.reduce((a, s) => a + s.v, 0));
+    const sc = niceScale(Math.max.apply(null, totals.concat([0])));
+    const n = buckets.length, slot = (W - padL - padR) / n, bw = Math.min(24, slot * 0.62);
+    const y = (v) => padT + (H - padT - padB) * (1 - v / sc.max);
+    let g = '';
+    for (let t = 0; t <= sc.max + 1e-9; t += sc.step) {
+      g += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(t) + '" y2="' + y(t) + '" stroke="#ECE8E1" stroke-width="1"/>' +
+        '<text x="' + (padL - 7) + '" y="' + (y(t) + 4) + '" text-anchor="end" class="ax">' + fmtInt(t) + '</text>';
+    }
+    const skip = slot < 30 ? 2 : 1;
+    buckets.forEach((b, i) => {
+      const cx = padL + slot * i + slot / 2, x0 = cx - bw / 2;
+      let acc = 0;
+      const live = b.segs.filter((s) => s.v > 0);
+      live.forEach((s, j) => {
+        const yTop = y(acc + s.v), yBot = y(acc) - (j > 0 ? 2 : 0);
+        const h = Math.max(0, yBot - yTop);
+        if (j === live.length - 1 && h > 0) {
+          const r = Math.min(4, h, bw / 2);
+          g += '<path d="M' + x0 + ' ' + yBot + 'V' + (yTop + r) + 'Q' + x0 + ' ' + yTop + ' ' + (x0 + r) + ' ' + yTop + 'H' + (x0 + bw - r) + 'Q' + (x0 + bw) + ' ' + yTop + ' ' + (x0 + bw) + ' ' + (yTop + r) + 'V' + yBot + 'Z" fill="' + s.color + '"/>';
+        } else if (h > 0) {
+          g += '<rect x="' + x0 + '" y="' + yTop + '" width="' + bw + '" height="' + h + '" fill="' + s.color + '"/>';
+        }
+        acc += s.v;
+      });
+      if (b.cur && totals[i] > 0) g += '<text x="' + cx + '" y="' + (y(totals[i]) - 7) + '" text-anchor="middle" class="cap">' + fmtInt(totals[i]) + '</text>';
+      if (i % skip === (n - 1) % skip) g += '<text x="' + cx + '" y="' + (H - 6) + '" text-anchor="middle" class="ax' + (b.cur ? ' cur' : '') + '">' + esc(b.label) + '</text>';
+      g += '<rect class="hit" x="' + (cx - slot / 2) + '" y="' + padT + '" width="' + slot + '" height="' + (H - padT - padB + 2) + '" fill="transparent" data-tip="' + esc(b.tip) + '" tabindex="0"/>';
+    });
+    return '<svg class="schart" viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="' + esc(opt.aria || 'Wykres') + '">' + g + '</svg>';
+  }
+
+  function hbars(rows, unit) {
+    const max = Math.max.apply(null, rows.map((r) => r.v).concat([1]));
+    return '<div class="hbars">' + rows.map((r) =>
+      '<div class="hrow" data-tip="' + esc(r.name + '\n' + fmtInt(r.v) + ' ' + (r.unit || unit)) + '">' +
+        '<div class="hlab">' + (r.sp ? '<span class="hbadge" style="background:' + r.sp.color + ';color:' + onColor(r.sp.color) + '">' + badgeInner(r.sp) + '</span>' : '') + '<span>' + esc(r.name) + '</span></div>' +
+        '<div class="htrack"><div class="hfill" style="width:' + Math.max(2, (r.v / max) * 100).toFixed(1) + '%;background:' + (r.color || '#17171B') + '"></div><span class="hval">' + fmtInt(r.v) + '</span></div>' +
+      '</div>').join('') + '</div>';
+  }
+
+  function ring(pct, label) {
+    const r = 46, C = 2 * Math.PI * r, f = Math.max(0, Math.min(1, pct));
+    return '<svg class="ring" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="' + esc(label) + '">' +
+      '<circle cx="60" cy="60" r="' + r + '" fill="none" stroke="#2E2E35" stroke-width="12"/>' +
+      '<circle cx="60" cy="60" r="' + r + '" fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-dasharray="' + (C * f).toFixed(1) + ' ' + C.toFixed(1) + '" transform="rotate(-90 60 60)"/>' +
+      '<text x="60" y="66" text-anchor="middle" class="ringv">' + Math.round(f * 100) + '%</text></svg>';
+  }
+
+  function viewStats(c) {
+    const all = sports();
+    const selSp = ui.stSport !== 'all' ? c.smap[ui.stSport] : null;
+    if (ui.stSport !== 'all' && !selSp) ui.stSport = 'all';
+    const weeks = ui.stPeriod !== 'm';
+    const ents = store.entries.filter((e) => c.smap[e.sport_id] && (!selSp || e.sport_id === selSp.id));
+    const unitWord = selSp ? (selSp.unit === 'x10' ? 'powt.' : selSp.unit === 'tak' ? 'razy' : selSp.unit) : 'treningów';
+    const valOf = (e) => (selSp ? metricOf(selSp, e) : 1);
+
+    // kubełki: 12 tygodni albo 12 miesięcy
+    const B = [];
+    for (let i = 11; i >= 0; i--) {
+      if (weeks) {
+        const m = addDays(mondayOf(c.T), -7 * i), end = addDays(m, 6);
+        B.push({ from: dkey(m), to: dkey(end), label: m.getDate() + '.' + pad(m.getMonth() + 1), full: m.getDate() + ' ' + M_SHORT[m.getMonth()] + ' – ' + end.getDate() + ' ' + M_SHORT[end.getMonth()], cur: i === 0 });
+      } else {
+        const m = new Date(c.T.getFullYear(), c.T.getMonth() - i, 1), end = new Date(m.getFullYear(), m.getMonth() + 1, 0);
+        B.push({ from: dkey(m), to: dkey(end), label: M_SHORT[m.getMonth()], full: M_NOM[m.getMonth()] + ' ' + m.getFullYear(), cur: i === 0 });
+      }
+    }
+    const inB = (b, e) => e.date >= b.from && e.date <= b.to;
+    const buckets = B.map((b) => {
+      const es = ents.filter((e) => inB(b, e));
+      const days = new Set(es.map((e) => e.date)).size;
+      let segsArr, tipLines;
+      if (selSp) {
+        const v = es.reduce((a, e) => a + valOf(e), 0);
+        segsArr = [{ v: v, color: selSp.color }];
+        tipLines = [fmtInt(v) + ' ' + unitWord, days + ' ' + plural(days, 'dzień', 'dni', 'dni') + ' z treningiem'];
+      } else {
+        segsArr = all.map((sp) => ({ v: es.filter((e) => e.sport_id === sp.id).length, color: sp.color, name: sp.name }));
+        tipLines = [es.length + ' ' + plural(es.length, 'trening', 'treningi', 'treningów') + ' · ' + days + ' ' + plural(days, 'dzień', 'dni', 'dni')]
+          .concat(segsArr.filter((s) => s.v).map((s) => s.name + ': ' + s.v));
+      }
+      return { label: b.label, cur: b.cur, segs: segsArr, tip: b.full + '\n' + tipLines.join('\n'), days: days, total: segsArr.reduce((a, s) => a + s.v, 0) };
+    });
+    const cur = buckets[11], prev = buckets[10];
+    const avg = buckets.slice(0, 11).reduce((a, b) => a + b.total, 0) / 11;
+    const per = weeks ? 'tydzień' : 'miesiąc';
+    const delta = (a, b) => { const d = a - b; return '<span class="sdelta">' + (d > 0 ? '▲ +' : d < 0 ? '▼ −' : '= ') + fmtInt(Math.abs(d)) + ' vs poprzedni</span>'; };
+
+    // regularność w bieżącym miesiącu
+    const mStart = new Date(c.T.getFullYear(), c.T.getMonth(), 1);
+    const elapsed = c.T.getDate();
+    const mDays = new Set(store.entries.filter((e) => c.smap[e.sport_id] && e.date >= dkey(mStart) && e.date <= c.tk).map((e) => e.date)).size;
+    const mCount = {};
+    store.entries.forEach((e) => { if (c.smap[e.sport_id] && e.date >= dkey(mStart)) mCount[e.sport_id] = (mCount[e.sport_id] || 0) + 1; });
+    const favId = Object.keys(mCount).sort((a, b) => mCount[b] - mCount[a])[0];
+    const fav = favId && c.smap[favId];
+
+    // dni tygodnia (wszystko)
+    const wd = [0, 0, 0, 0, 0, 0, 0];
+    ents.forEach((e) => { wd[(parseKey(e.date).getDay() + 6) % 7] += valOf(e); });
+    const wdNames = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb', 'Nd'], wdFull = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
+    const topWd = wd.indexOf(Math.max.apply(null, wd));
+    const wdChart = colChart(wd.map((v, i) => ({ label: wdNames[i], cur: i === topWd && v > 0, segs: [{ v: v, color: selSp ? selSp.color : '#17171B' }], tip: wdFull[i] + '\n' + fmtInt(v) + ' ' + unitWord })), { W: statW(true), H: 180, aria: 'Treningi według dnia tygodnia' });
+
+    // podział sportów albo miejsca
+    const scopeFrom = B[0].from;
+    let split = '';
+    if (!selSp) {
+      const rows = all.map((sp) => ({ name: sp.name, sp: sp, color: sp.color, v: store.entries.filter((e) => e.sport_id === sp.id && e.date >= scopeFrom).length }))
+        .filter((r) => r.v).sort((a, b) => b.v - a.v);
+      split = '<section class="card stack-s"><h2 class="h2 st">Co trenujesz najczęściej</h2><div class="small">Liczba treningów · ostatnie 12 ' + (weeks ? 'tygodni' : 'miesięcy') + '</div>' +
+        (rows.length ? hbars(rows, 'treningów') : '<div class="muted">Brak danych.</div>') + '</section>';
+    }
+    const placeRows = {};
+    ents.forEach((e) => { if (e.place) { const k = e.sport_id + '|' + e.place; placeRows[k] = placeRows[k] || { name: e.place, v: 0, sp: c.smap[e.sport_id], color: c.smap[e.sport_id].color }; placeRows[k].v += 1; } });
+    const pr = Object.keys(placeRows).map((k) => placeRows[k]).sort((a, b) => b.v - a.v);
+    const places = pr.length ? '<section class="card stack-s"><h2 class="h2 st">Gdzie trenujesz</h2><div class="small">Liczba treningów · od początku</div>' + hbars(pr, 'treningów') + '</section>' : '';
+
+    // rekordy
+    const recs = [];
+    const dayTotals = {};
+    ents.forEach((e) => { dayTotals[e.date] = (dayTotals[e.date] || 0) + valOf(e); });
+    const bestDay = Object.keys(dayTotals).sort((a, b) => dayTotals[b] - dayTotals[a])[0];
+    const lifetime = ents.reduce((a, e) => a + valOf(e), 0);
+    const daysAll = new Set(ents.map((e) => e.date)).size;
+    const firstD = ents.length ? ents.map((e) => e.date).sort()[0] : null;
+    const bestBucket = buckets.reduce((m, b) => (b.total > m.total ? b : m), buckets[0]);
+    recs.push(['Razem od początku', fmtInt(lifetime) + ' ' + unitWord]);
+    recs.push(['Dni z treningiem', fmtInt(daysAll)]);
+    if (selSp && selSp.unit !== 'tak' && bestDay) recs.push(['Najlepszy dzień', fmtInt(dayTotals[bestDay]) + ' ' + unitWord + ' · ' + parseKey(bestDay).getDate() + ' ' + M_SHORT[parseKey(bestDay).getMonth()]]);
+    recs.push(['Najlepszy ' + per, bestBucket.total ? fmtInt(bestBucket.total) + ' ' + unitWord : '—']);
+    if (!selSp) recs.push(['Najdłuższa seria', c.best + ' ' + plural(c.best, 'dzień', 'dni', 'dni')]);
+    if (firstD) recs.push(['Pierwszy wpis', parseKey(firstD).getDate() + ' ' + M_GEN[parseKey(firstD).getMonth()] + ' ' + parseKey(firstD).getFullYear()]);
+
+    const chips = [{ id: 'all', name: 'Wszystkie' }].concat(all).map((f) =>
+      '<button type="button" class="pill' + (ui.stSport === f.id ? ' on' : '') + '" data-a="stSport" data-id="' + f.id + '">' +
+      (f.color ? '<span class="dot" style="background:' + f.color + '"></span>' : '') + esc(f.name) + '</button>').join('');
+    const legend = selSp ? '' : '<div class="legend">' + all.map((sp) => '<div><span style="background:' + sp.color + '"></span>' + esc(sp.name) + '</div>').join('') + '</div>';
+
+    return '<div class="top"><h1 class="h1">Statystyki</h1>' + syncBadge() + '</div>' +
+      '<div class="st-filters"><div class="chips">' + chips + '</div>' +
+        '<div class="seg st-period"><button type="button" class="pill' + (weeks ? ' on' : '') + '" data-a="stPeriod" data-v="w">Tygodnie</button>' +
+        '<button type="button" class="pill' + (!weeks ? ' on' : '') + '" data-a="stPeriod" data-v="m">Miesiące</button></div></div>' +
+      '<section class="st-hero">' + ring(elapsed ? mDays / elapsed : 0, 'Regularność w tym miesiącu') +
+        '<div class="st-hero-t"><div class="lbl">Regularność · ' + M_NOM[c.T.getMonth()].toLowerCase() + '</div>' +
+        '<div class="big">' + mDays + ' z ' + elapsed + ' dni</div>' +
+        '<div class="lbl">' + (fav ? 'Najczęściej: <b>' + esc(fav.name) + '</b> (' + mCount[favId] + '×)' : 'Jeszcze bez treningów w tym miesiącu') + '</div></div></section>' +
+      '<div class="stats st-tiles">' +
+        '<div class="stat"><span class="small">' + (selSp ? (selSp.unit === 'x10' ? 'Powtórzenia' : selSp.unit === 'tak' ? 'Treningi' : 'Suma') : 'Treningi') + ' · ten ' + per + '</span><b>' + fmtInt(cur.total) + '</b>' + delta(cur.total, prev.total) + '</div>' +
+        '<div class="stat"><span class="small">Dni z treningiem · ten ' + per + '</span><b>' + cur.days + '</b>' + delta(cur.days, prev.days) + '</div>' +
+        '<div class="stat"><span class="small">Średnio na ' + per + '</span><b>' + fmtInt(Math.round(avg * 10) / 10) + '</b><span class="sdelta">' + unitWord + ' · 11 poprzednich</span></div>' +
+      '</div>' +
+      '<section class="card stack-s"><div class="between"><h2 class="h2 st">' + (selSp ? esc(selSp.name) + ' – ' : '') + (selSp ? (weeks ? 'ostatnie 12 tygodni' : 'ostatnie 12 miesięcy') : (weeks ? 'Ostatnie 12 tygodni' : 'Ostatnie 12 miesięcy')) + '</h2><span class="small">' + unitWord + '</span></div>' +
+        colChart(buckets, { W: statW(false), H: 230, aria: 'Wykres ' + (weeks ? 'tygodniowy' : 'miesięczny') }) + legend + '</section>' +
+      '<div class="hist-grid">' +
+        '<section class="card stack-s"><h2 class="h2 st">Dni tygodnia</h2><div class="small">' + (wd.some((v) => v) ? 'Najmocniej: ' + wdFull[topWd].toLowerCase() : 'Brak danych') + ' · od początku</div>' + wdChart + '</section>' +
+        '<section class="card stack-s"><h2 class="h2 st">Rekordy i sumy</h2><div class="recs">' + recs.map((r) => '<div class="rec-row"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join('') + '</div></section>' +
+      '</div>' +
+      (split || places ? '<div class="hist-grid">' + split + places + '</div>' : '');
+  }
+
   function viewLogin() {
     const a = ui.auth, login = a.mode === 'login';
     return '<div class="login"><form class="box" data-submit="auth" novalidate>' +
@@ -747,11 +931,11 @@
   function viewApp() {
     const c = compute();
     const tab = ui.tab;
-    const body = tab === 'history' ? viewHistory(c) : tab === 'sports' ? viewSports(c) : tab === 'weight' ? viewWeight(c) : viewToday(c);
-    const nav = [['today', 'Dziś', ICON.cal], ['history', 'Ciągłość', ICON.grid], ['weight', 'Waga', ICON.scale], ['sports', 'Sporty', ICON.list]];
+    const body = tab === 'history' ? viewHistory(c) : tab === 'sports' ? viewSports(c) : tab === 'weight' ? viewWeight(c) : tab === 'stats' ? viewStats(c) : viewToday(c);
+    const nav = [['today', 'Dziś', ICON.cal], ['history', 'Ciągłość', ICON.grid], ['weight', 'Waga', ICON.scale], ['stats', 'Statystyki', ICON.chart], ['sports', 'Sporty', ICON.list]];
     const sidebar = '<aside class="sidebar"><div class="brand"><span class="logo"><span style="background:#DC3B41"></span><span style="background:#3E63DD"></span><span style="background:#E0590A"></span><span style="background:#2B9358"></span></span>HalfWay</div>' +
       nav.map((n) => '<button type="button" class="nav' + (tab === n[0] ? ' on' : '') + '" data-a="tab" data-v="' + n[0] + '">' + n[2] + n[1] + '</button>').join('') +
-      '<div class="foot">' + (tab === 'sports' || tab === 'weight' ? '<button type="button" class="btn" data-a="open">' + ICON.plus + 'Dodaj trening</button>' : '') + '</div></aside>';
+      '<div class="foot">' + (tab === 'sports' || tab === 'weight' || tab === 'stats' ? '<button type="button" class="btn" data-a="open">' + ICON.plus + 'Dodaj trening</button>' : '') + '</div></aside>';
     const tabbar = '<nav class="tabbar" aria-label="Nawigacja">' +
       nav.map((n) => '<button type="button" class="' + (tab === n[0] ? 'on' : '') + '" data-a="tab" data-v="' + n[0] + '">' + n[2] + n[1] + '</button>').join('') + '</nav>';
     const fab = tab === 'today' ? '<button type="button" class="fab" data-a="open" aria-label="Dodaj trening">' + ICON.plus + '</button>' : '';
@@ -819,6 +1003,8 @@
       deleteEntry(id); showToast('Usunięto wpis');
     },
     editDay(d) { ui.editDay = d.k; render(); },
+    stSport(d) { ui.stSport = d.id; render(); },
+    stPeriod(d) { ui.stPeriod = d.v; render(); },
     pickDate(d) { ui.draft.date = d.v; render(); },
     pickSport(d) {
       const s = sportMap()[d.id];
@@ -1020,10 +1206,7 @@
   tipEl.className = 'tip'; tipEl.setAttribute('role', 'tooltip'); tipEl.hidden = true;
   document.body.appendChild(tipEl);
   const canHover = window.matchMedia && window.matchMedia('(hover: hover)').matches;
-  document.addEventListener('mouseover', (e) => {
-    if (!canHover) return;
-    const t = e.target.closest && e.target.closest('[data-tip]');
-    if (!t) { tipEl.hidden = true; return; }
+  function showTip(t) {
     const lines = t.dataset.tip.split('\n');
     tipEl.innerHTML = '<b>' + esc(lines[0]) + '</b>' + lines.slice(1).map((l) => '<div>' + esc(l) + '</div>').join('');
     tipEl.hidden = false;
@@ -1032,9 +1215,20 @@
     if (y < 8) y = r.bottom + 8;
     x = Math.max(8, Math.min(x, window.innerWidth - w - 8));
     tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
+  }
+  document.addEventListener('mouseover', (e) => {
+    if (!canHover) return;
+    const t = e.target.closest && e.target.closest('[data-tip]');
+    if (!t) { tipEl.hidden = true; return; }
+    showTip(t);
   });
+  document.addEventListener('focusin', (e) => { const t = e.target.closest && e.target.closest('.schart [data-tip]'); if (t) showTip(t); });
   window.addEventListener('scroll', () => { tipEl.hidden = true; }, { passive: true });
-  document.addEventListener('click', () => { tipEl.hidden = true; });
+  document.addEventListener('click', (e) => {
+    // na telefonie (bez najechania) stuknięcie słupka/paska w Statystykach pokazuje dymek
+    const t = !canHover && e.target.closest && e.target.closest('.schart [data-tip], .hrow[data-tip]');
+    if (t) showTip(t); else tipEl.hidden = true;
+  });
   let rz = null;
   window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 150); });
   window.addEventListener('online', () => { flush().then(pull); });
