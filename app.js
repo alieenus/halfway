@@ -12,20 +12,22 @@
     : null;
 
   // kolory sprawdzone walidatorem palety (rozróżnialne także przy daltonizmie, w parze z nazwami)
-  const C_GREEN = '#3DAA6A', C_BLUE = '#3E63DD', C_GOLD = '#B8860B', C_RED = '#DC3B41', C_PURPLE = '#A23CB8';
-  const COLORS = [C_GREEN, C_BLUE, C_GOLD, C_RED, C_PURPLE, '#0D8F99', '#E0590A', '#C2357F'];
+  const C_GREEN = '#3DAA6A', C_BLUE = '#3E63DD', C_GOLD = '#B8860B', C_YELLOW = '#E5B700', C_RED = '#DC3B41', C_PURPLE = '#A23CB8';
+  const COLORS = [C_GREEN, C_BLUE, C_YELLOW, C_RED, C_PURPLE, '#0D8F99', '#E0590A', '#C2357F'];
+  // tekst na kolorowym tle: ciemny na jasnych kolorach (żółty), biały na pozostałych
+  const onColor = (hex) => { const n = parseInt(hex.slice(1), 16); const r = n >> 16, g = (n >> 8) & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) > 170 ? '#17171B' : '#FFFFFF'; };
   // x10 = wpisujesz liczbę dziesiątek (4 = 40 powtórzeń); tak = trening był (min. 30 min)
   const UNITS = ['x10', 'tak', 'powt.', 'min', 'km'];
   const UNIT_LABEL = { 'x10': 'Liczba ×10', 'tak': 'Był / nie był', 'powt.': 'Powtórzenia', 'min': 'Minuty', 'km': 'Kilometry' };
-  const QUICK = { 'x10': [3, 4, 5, 10], 'powt.': [10, 25, 50, 100], 'min': [30, 45, 60, 90], 'km': [3, 5, 10, 20] };
+  const QUICK = { 'x10': [3, 4, 5, 6], 'powt.': [10, 25, 50, 100], 'min': [30, 45, 60, 90], 'km': [3, 5, 10, 20] };
   const STEP = { 'x10': 1, 'powt.': 5, 'min': 5, 'km': 1 };
   const UNIT_LONG = { 'x10': 'powtórzenia', 'tak': 'trening min. 30 min', 'powt.': 'powtórzenia', 'min': 'minuty', 'km': 'kilometry' };
   const MIN_CHECK = 'min. 30 min';
   const DEFAULT_SPORTS = [
     { name: 'Pompki', color: C_GREEN, unit: 'x10' },
     { name: 'Przysiady', color: C_BLUE, unit: 'x10' },
-    { name: 'Koszykówka', color: C_GOLD, unit: 'tak' },
-    { name: 'Piłka nożna', color: C_RED, unit: 'tak' },
+    { name: 'Koszykówka', color: C_YELLOW, unit: 'tak', places: ['Stadion', 'Iłowa', 'Arena'] },
+    { name: 'Piłka nożna', color: C_RED, unit: 'tak', places: ['Ogródek', 'Nasze osiedle'] },
     { name: 'Rower', color: C_PURPLE, unit: 'tak' }
   ];
   const isCheck = (s) => s && s.unit === 'tak';
@@ -43,6 +45,7 @@
   const M_SHORT = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
 
   const ICON = {
+    pin: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>',
     cal: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/><rect x="8" y="13" width="4" height="4" rx="1" fill="currentColor" stroke="none"/></svg>',
     grid: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2" fill="currentColor"/><rect x="3.5" y="13.5" width="7" height="7" rx="2" fill="currentColor"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>',
     list: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="7" r="2.2" fill="currentColor" stroke="none"/><circle cx="6" cy="12" r="2.2" fill="currentColor" stroke="none"/><circle cx="6" cy="17" r="2.2" fill="currentColor" stroke="none"/><path d="M11 7h9M11 12h9M11 17h9"/></svg>',
@@ -89,8 +92,9 @@
 
   function enqueue(op) { if (REMOTE) store.queue.push(op); saveLocal(); render(); flush(); }
 
-  function addEntry(date, sportId, amount) {
+  function addEntry(date, sportId, amount, place) {
     const row = { id: uuid(), sport_id: sportId, date: date, amount: amount };
+    if (place) row.place = place;
     store.entries.push(row);
     enqueue({ t: 'entries', op: 'upsert', row: row });
   }
@@ -98,9 +102,10 @@
     store.entries = store.entries.filter((e) => e.id !== id);
     enqueue({ t: 'entries', op: 'delete', id: id });
   }
-  function addSport(name, color, unit, silent) {
+  function addSport(name, color, unit, silent, places) {
     const pos = store.sports.reduce((m, s) => Math.max(m, s.position), -1) + 1;
     const row = { id: uuid(), name: name, color: color, unit: unit, position: pos };
+    if (places && places.length) row.places = places.slice();
     store.sports.push(row);
     if (REMOTE) store.queue.push({ t: 'sports', op: 'upsert', row: Object.assign({}, row) });
     if (!silent) { saveLocal(); render(); flush(); }
@@ -153,6 +158,26 @@
     return true;
   }
 
+  // v3: koszykówka na żółto + miejsca treningów
+  function migrateV3() {
+    const by = (n) => store.sports.find((x) => x.name.trim().toLowerCase() === n);
+    const k = by('koszykówka');
+    if (!k || k.color !== C_GOLD) return false;
+    const upd = (sp, patch) => { if (!sp) return; Object.assign(sp, patch); pushOp({ t: 'sports', op: 'upsert', row: Object.assign({}, sp) }); };
+    upd(k, Object.assign({ color: C_YELLOW }, (k.places && k.places.length) ? {} : { places: ['Stadion', 'Iłowa', 'Arena'] }));
+    const f = by('piłka nożna');
+    if (f && !(f.places && f.places.length)) upd(f, { places: ['Ogródek', 'Nasze osiedle'] });
+    saveLocal();
+    return true;
+  }
+
+  function lastPlaceFor(sp) {
+    if (!sp || !sp.places || !sp.places.length) return null;
+    const withPlace = store.entries.filter((e) => e.sport_id === sp.id && e.place && sp.places.indexOf(e.place) >= 0)
+      .sort((a, b) => (a.date < b.date ? 1 : -1));
+    return withPlace.length ? withPlace[0].place : sp.places[0];
+  }
+
   // ---------- waga ----------
   function setWeight(date, kg) {
     const ex = store.weights.find((w) => w.date === date);
@@ -169,7 +194,7 @@
   const mondayOf = (d) => addDays(d, -((d.getDay() + 6) % 7));
 
   function seedDefaults() {
-    DEFAULT_SPORTS.forEach((s) => addSport(s.name, s.color, s.unit, true));
+    DEFAULT_SPORTS.forEach((s) => addSport(s.name, s.color, s.unit, true, s.places));
     saveLocal(); render(); flush();
   }
 
@@ -187,9 +212,10 @@
         const res = op.op === 'upsert'
           ? await sb.from(op.t).upsert(op.row)
           : await sb.from(op.t).delete().eq('id', op.id);
-        if (res.error && /PGRST205|42P01/.test(res.error.code || '')) {
-          // tabela jeszcze nie istnieje (np. waga przed uruchomieniem SQL) – zachowaj wpis na później
-          ui.weightsMissing = true; parked.push(store.queue.shift()); continue;
+        if (res.error && /PGRST20[45]|42P01|42703/.test(res.error.code || '')) {
+          // brak tabeli/kolumny w bazie (SQL jeszcze nie uruchomiony) – zachowaj wpis na później
+          if (op.t === 'weights') ui.weightsMissing = true;
+          op.parked = true; parked.push(store.queue.shift()); continue;
         }
         if (res.error) {
           if (isNetworkError(res.error)) break;
@@ -219,16 +245,18 @@
 
   async function pull() {
     if (!REMOTE || !ui.session || ui.syncing) return;
-    const blocking = () => store.queue.some((op) => !(op.t === 'weights' && ui.weightsMissing));
+    const blocking = () => store.queue.some((op) => !op.parked);
     if (store.queue.length) { await flush(); if (blocking()) return; }
     ui.syncing = true; render();
     try {
-      const sp = await sb.from('sports').select('id,name,color,unit,position').order('position');
+      let sp = await sb.from('sports').select('id,name,color,unit,position,places').order('position');
+      if (sp.error) sp = await sb.from('sports').select('id,name,color,unit,position').order('position');
       if (sp.error) throw sp.error;
       let entries = [], from = 0;
       const size = 1000;
       for (;;) {
-        const r = await sb.from('entries').select('id,sport_id,date,amount').order('date').range(from, from + size - 1);
+        let r = await sb.from('entries').select(ui.noPlaceCol ? 'id,sport_id,date,amount' : 'id,sport_id,date,amount,place').order('date').range(from, from + size - 1);
+        if (r.error && !ui.noPlaceCol) { ui.noPlaceCol = true; r = await sb.from('entries').select('id,sport_id,date,amount').order('date').range(from, from + size - 1); }
         if (r.error) throw r.error;
         entries = entries.concat(r.data);
         if (r.data.length < size) break;
@@ -243,7 +271,7 @@
       saveLocal();
       ui.syncing = false;
       if (!store.sports.length) seedDefaults();
-      else if (migrateV2()) { render(); flush(); }
+      else { const m2 = migrateV2(), m3 = migrateV3(); if (m2 || m3) { render(); flush(); } }
     } catch (e) {
       console.warn('HalfWay pull', e);
     }
@@ -260,7 +288,7 @@
     draft: { date: dkey(t0), sportId: null, amount: 4 },
     wDraft: { date: dkey(t0), kg: null }, wSel: null, weightsMissing: false,
     toast: null,
-    newSport: { name: '', unit: 'x10', color: COLORS[5] },
+    newSport: { name: '', unit: 'x10', color: COLORS[5], places: [] },
     edit: null,
     session: null, ready: !REMOTE, syncing: false,
     auth: { mode: 'login', email: '', pass: '', busy: false, msg: '', err: false }
@@ -316,17 +344,30 @@
     return '<button type="button" class="sync" data-a="sync" aria-label="Odśwież dane"><i></i>Zapisane</button>';
   }
 
-  function entryRow(c, e, compact) {
+  function entryRow(c, e, compact, readonly) {
     const s = c.smap[e.sport_id];
     return '<div class="entry' + (compact ? ' compact' : '') + '">' +
-      '<div class="badge' + (compact ? ' s' : '') + '" style="background:' + s.color + '">' + esc(s.name.charAt(0)) + '</div>' +
+      '<div class="badge' + (compact ? ' s' : '') + '" style="background:' + s.color + ';color:' + onColor(s.color) + '">' + esc(s.name.charAt(0)) + '</div>' +
       '<div style="flex:1;min-width:0"><div class="name">' + esc(s.name) + '</div>' +
-      (compact ? '' : '<div class="small">' + esc(s.unit === 'x10' ? num(e.amount) + ' × 10' : (UNIT_LONG[s.unit] || s.unit)) + '</div>') + '</div>' +
+      (e.place ? '<div class="small place">' + ICON.pin + esc(e.place) + '</div>'
+        : compact ? '' : '<div class="small">' + esc(s.unit === 'x10' ? num(e.amount) + ' × 10' : (UNIT_LONG[s.unit] || s.unit)) + '</div>') + '</div>' +
       (isCheck(s)
         ? '<div class="done" style="--c:' + s.color + '">' + ICON.tick + 'Był</div>'
         : '<div class="amt">' + shown(s, e.amount).v + '<small>' + esc(shown(s, e.amount).u) + '</small></div>') +
-      '<button type="button" class="icon-btn" data-a="delEntry" data-id="' + e.id + '" aria-label="Usuń wpis: ' + esc(s.name) + '">' + ICON.x + '</button>' +
+      (readonly ? '' : '<button type="button" class="icon-btn" data-a="delEntry" data-id="' + e.id + '" aria-label="Usuń wpis: ' + esc(s.name) + '">' + ICON.x + '</button>') +
       '</div>';
+  }
+
+  // opis dnia do podpowiedzi po najechaniu (Ciągłość)
+  function dayTip(c, k) {
+    const list = sortedEntries(c, k);
+    const lines = list.map((e) => {
+      const sp = c.smap[e.sport_id];
+      if (isCheck(sp)) return sp.name + (e.place ? ' – ' + e.place : '');
+      const sh = shown(sp, e.amount);
+      return sp.name + ' ' + sh.v + ' ' + sh.u + (e.place ? ' – ' + e.place : '');
+    });
+    return longDate(parseKey(k)) + '\n' + (lines.length ? lines.join('\n') : 'brak treningu');
   }
 
   function viewToday(c) {
@@ -377,7 +418,7 @@
       const names = (c.byDate[k] || []).map((e) => c.smap[e.sport_id].name).join(', ');
       cells += '<button type="button" class="cell' + (future ? ' future' : '') + (sg ? ' has' : '') + (k === ui.selDay ? ' sel' : '') + '"' +
         (future ? ' disabled' : ' data-a="day" data-k="' + k + '"') +
-        ' aria-label="' + esc(longDate(d) + ': ' + (names || 'brak treningu')) + '" title="' + esc(longDate(d) + (names ? ' – ' + names : '')) + '">' + sg + '</button>';
+        ' aria-label="' + esc(dayTip(c, k).replace(/\n/g, ', ')) + '"' + (future ? '' : ' data-tip="' + esc(dayTip(c, k)) + '"') + '>' + sg + '</button>';
     }
     const filters = [{ id: 'all', name: 'Wszystko' }].concat(sports()).map((f) =>
       '<button type="button" class="pill' + (ui.filter === f.id ? ' on' : '') + '" data-a="filter" data-id="' + f.id + '">' +
@@ -393,7 +434,7 @@
       const d = new Date(ui.calY, ui.calM, dnum), k = dkey(d), future = d > c.T;
       const sg = future ? '' : segs(c, k, true);
       cal += '<button type="button" class="day' + (sg ? ' has' : '') + (k === c.tk ? ' today' : '') + (k === ui.selDay ? ' sel' : '') + (future ? ' future' : '') + '"' +
-        (future ? ' disabled' : ' data-a="day" data-k="' + k + '"') + ' aria-label="' + esc(longDate(d)) + '">' +
+        (future ? ' disabled' : ' data-a="day" data-k="' + k + '" data-tip="' + esc(dayTip(c, k)) + '"') + ' aria-label="' + esc(longDate(d)) + '">' +
         '<span class="n">' + dnum + '</span><span class="bar">' + sg + '</span></button>';
     }
 
@@ -423,8 +464,8 @@
         '</section>' +
         '<section class="stack-s">' +
           '<h2 class="h2">' + (ui.selDay === c.tk ? 'Dziś' : esc(longDate(sel))) + '</h2>' +
-          (selList.length ? selList.map((e) => entryRow(c, e, true)).join('') : '<div class="muted">Brak treningu tego dnia.</div>') +
-          (sel <= c.T ? '<button type="button" class="btn ghost" data-a="open" data-date="' + ui.selDay + '">Dopisz trening do tego dnia</button>' : '') +
+          (selList.length ? selList.map((e) => entryRow(c, e, true, true)).join('') : '<div class="muted">Brak treningu tego dnia.</div>') +
+          '<div class="small" style="font-weight:600">Tu tylko przeglądasz. Wpisy dodajesz i usuwasz w zakładce Dziś.</div>' +
         '</section>' +
       '</div>';
   }
@@ -442,6 +483,11 @@
       '<div class="field"><span class="lab">Jak liczysz</span><div class="seg wrap">' + units + '</div>' +
         '<div class="small" style="font-weight:600">' + ({ x10: 'Wpisujesz liczbę dziesiątek: 4 = 40 powtórzeń.', tak: 'Odhaczasz, że trening był (' + MIN_CHECK + ').' }[f.unit] || '') + '</div></div>' +
       '<div class="field"><span class="lab">Kolor</span><div class="swatches">' + cols + '</div></div>' +
+      '<div class="field"><span class="lab">Miejsca (opcjonalnie)</span>' +
+        '<div class="row" style="flex-wrap:wrap;gap:8px">' + (f.places || []).map((pl, i) => '<span class="pill">' + ICON.pin + esc(pl) +
+          '<button type="button" class="chip-x" data-a="delPlace" data-i="' + i + '" aria-label="Usuń miejsce ' + esc(pl) + '">' + ICON.x + '</button></span>').join('') + '</div>' +
+        '<div class="row" style="gap:8px"><input class="input" id="in-' + pre + '-place" data-in="formPlace" type="text" placeholder="np. Stadion" maxlength="30" value="' + esc(f.placeDraft || '') + '">' +
+        '<button type="button" class="btn soft" data-a="addPlace" style="flex:none">Dodaj</button></div></div>' +
       (e
         ? '<div class="stack-s"><button type="button" class="btn" data-a="saveEdit">Zapisz zmiany</button>' +
           '<button type="button" class="btn ' + (e.confirm ? 'danger' : 'soft') + '" data-a="delSport">' + (e.confirm ? 'Na pewno? Usunie też wszystkie wpisy tego sportu' : 'Usuń sport') + '</button></div>'
@@ -455,7 +501,7 @@
       const sum = es.reduce((a, e) => a + Number(e.amount), 0);
       const tot = isCheck(s) ? { v: num(es.length), u: plural(es.length, 'raz', 'razy', 'razy') } : shown(s, sum);
       return '<button type="button" class="sport-row" data-a="editSport" data-id="' + s.id + '" aria-label="Edytuj ' + esc(s.name) + '">' +
-        '<span class="badge" style="width:42px;height:42px;border-radius:12px;font-size:19px;background:' + s.color + '">' + esc(s.name.charAt(0)) + '</span>' +
+        '<span class="badge" style="width:42px;height:42px;border-radius:12px;font-size:19px;background:' + s.color + ';color:' + onColor(s.color) + '">' + esc(s.name.charAt(0)) + '</span>' +
         '<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-weight:800;font-size:15px">' + esc(s.name) + '</span>' +
         '<span class="small">' + es.length + ' ' + plural(es.length, 'trening', 'treningi', 'treningów') + ' w ' + M_LOC[c.T.getMonth()] + '</span></span>' +
         '<span class="tot"><b>' + tot.v + '</b><span class="small">' + esc(tot.u) + '</span></span></button>';
@@ -498,8 +544,12 @@
         '<label class="pill datepick' + (other ? ' on' : '') + '">' + (other ? parseKey(d.date).getDate() + ' ' + M_SHORT[parseKey(d.date).getMonth()] : 'Inna data') +
           '<input type="date" data-ch="date" max="' + c.tk + '" value="' + d.date + '" aria-label="Wybierz inną datę"></label></div>' +
       '<div class="field"><span class="lab">Co trenowałeś?</span><div class="sgrid">' + tiles + '</div></div>' +
+      (sp.places && sp.places.length
+        ? '<div class="field"><span class="lab">Gdzie?</span><div class="row" style="flex-wrap:wrap;gap:8px">' +
+          sp.places.map((pl) => '<button type="button" class="pill' + (d.place === pl ? ' on' : '') + '" data-a="pickPlace" data-v="' + esc(pl) + '">' + ICON.pin + esc(pl) + '</button>').join('') + '</div></div>'
+        : '') +
       (chk
-        ? '<div class="checkbox-info" style="--c:' + sp.color + '"><span class="ci">' + ICON.tick + '</span><div><b>' + (already ? 'Już odhaczone tego dnia' : 'Trening się odbył?') + '</b>' +
+        ? '<div class="checkbox-info" style="--c:' + sp.color + '"><span class="ci" style="color:' + onColor(sp.color) + '">' + ICON.tick + '</span><div><b>' + (already ? 'Już odhaczone tego dnia' : 'Trening się odbył?') + '</b>' +
           '<div>Odhacz, jeśli trenowałeś ' + MIN_CHECK + '.</div></div></div>'
         : '<div class="stack-s">' +
           '<div class="stepper"><button type="button" class="pm" data-a="minus" aria-label="Mniej">' + ICON.minus + '</button>' +
@@ -659,10 +709,10 @@
     const nav = [['today', 'Dziś', ICON.cal], ['history', 'Ciągłość', ICON.grid], ['weight', 'Waga', ICON.scale], ['sports', 'Sporty', ICON.list]];
     const sidebar = '<aside class="sidebar"><div class="brand"><span class="logo"><span style="background:#DC3B41"></span><span style="background:#3E63DD"></span><span style="background:#E0590A"></span><span style="background:#2B9358"></span></span>HalfWay</div>' +
       nav.map((n) => '<button type="button" class="nav' + (tab === n[0] ? ' on' : '') + '" data-a="tab" data-v="' + n[0] + '">' + n[2] + n[1] + '</button>').join('') +
-      '<div class="foot">' + (tab !== 'today' ? '<button type="button" class="btn" data-a="open">' + ICON.plus + 'Dodaj trening</button>' : '') + '</div></aside>';
+      '<div class="foot">' + (tab === 'sports' || tab === 'weight' ? '<button type="button" class="btn" data-a="open">' + ICON.plus + 'Dodaj trening</button>' : '') + '</div></aside>';
     const tabbar = '<nav class="tabbar" aria-label="Nawigacja">' +
       nav.map((n) => '<button type="button" class="' + (tab === n[0] ? 'on' : '') + '" data-a="tab" data-v="' + n[0] + '">' + n[2] + n[1] + '</button>').join('') + '</nav>';
-    const fab = tab !== 'sports' && tab !== 'weight' ? '<button type="button" class="fab" data-a="open" aria-label="Dodaj trening">' + ICON.plus + '</button>' : '';
+    const fab = tab === 'today' ? '<button type="button" class="fab" data-a="open" aria-label="Dodaj trening">' + ICON.plus + '</button>' : '';
     const sheet = ui.sheet
       ? '<div class="overlay' + (ui.sheetAnim ? ' anim' : '') + '"><button type="button" class="backdrop" data-a="closeSheet" aria-label="Zamknij"></button><div class="sheet" role="dialog" aria-label="Nowy trening"><div class="grab"></div>' + addPanel(c, 'sheet') + '</div></div>'
       : '';
@@ -696,7 +746,7 @@
     const k = date && parseKey(date) <= T ? date : dkey(T);
     ui.draft.date = k;
     const sp = sportMap()[ui.draft.sportId] || sportMap()[ui.lastSport] || sports()[0];
-    if (sp) { ui.draft.sportId = sp.id; ui.draft.amount = (QUICK[sp.unit] || [10, 10])[1]; }
+    if (sp) { ui.draft.sportId = sp.id; ui.draft.amount = (QUICK[sp.unit] || [10, 10])[1]; ui.draft.place = lastPlaceFor(sp); }
     ui.sheet = true;
     ui.sheetAnim = true;
     render();
@@ -713,8 +763,10 @@
       if (!s) return;
       ui.draft.sportId = s.id;
       ui.draft.amount = (QUICK[s.unit] || [10, 10])[1];
+      ui.draft.place = lastPlaceFor(s);
       render();
     },
+    pickPlace(d) { ui.draft.place = ui.draft.place === d.v ? null : d.v; render(); },
     minus() { const s = sportMap()[ui.draft.sportId]; ui.draft.amount = Math.max(0, Math.round((ui.draft.amount - (STEP[s && s.unit] || 1)) * 10) / 10); render(); },
     plus() { const s = sportMap()[ui.draft.sportId]; ui.draft.amount = Math.round((ui.draft.amount + (STEP[s && s.unit] || 1)) * 10) / 10; render(); },
     quick(d) { ui.draft.amount = Number(d.v); render(); },
@@ -729,7 +781,7 @@
       ui.sheet = false;
       ui.selDay = date;
       const dd = parseKey(date); ui.calY = dd.getFullYear(); ui.calM = dd.getMonth();
-      addEntry(date, s.id, amt);
+      addEntry(date, s.id, amt, s.places && s.places.indexOf(ui.draft.place) >= 0 ? ui.draft.place : null);
       const sh = shown(s, amt);
       showToast(isCheck(s) ? 'Odhaczono: ' + s.name : 'Zapisano: ' + s.name + ' · ' + sh.v + ' ' + sh.u);
     },
@@ -743,20 +795,29 @@
     prevM() { ui.calM--; if (ui.calM < 0) { ui.calM = 11; ui.calY--; } render(); },
     nextM() { ui.calM++; if (ui.calM > 11) { ui.calM = 0; ui.calY++; } render(); },
     formUnit(d) { (ui.edit || ui.newSport).unit = d.v; render(); },
+    addPlace() {
+      const f = ui.edit || ui.newSport;
+      const v = (f.placeDraft || '').trim();
+      if (!v) return;
+      f.places = (f.places || []).filter((x) => x !== v).concat([v]);
+      f.placeDraft = '';
+      render();
+    },
+    delPlace(d) { const f = ui.edit || ui.newSport; f.places = (f.places || []).filter((x, i) => i !== Number(d.i)); render(); },
     formColor(d) { (ui.edit || ui.newSport).color = d.v; render(); },
     addSport() {
       const n = ui.newSport;
       const name = n.name.trim();
       if (!name) { showToast('Podaj nazwę sportu', true); return; }
-      addSport(name, n.color, n.unit);
+      addSport(name, n.color, n.unit, false, n.places);
       const used = store.sports.map((s) => s.color);
-      ui.newSport = { name: '', unit: n.unit, color: COLORS.find((col) => used.indexOf(col) < 0) || COLORS[0] };
+      ui.newSport = { name: '', unit: n.unit, color: COLORS.find((col) => used.indexOf(col) < 0) || COLORS[0], places: [] };
       showToast('Dodano sport: ' + name);
     },
     editSport(d) {
       const s = sportMap()[d.id];
       if (!s) return;
-      ui.edit = { id: s.id, name: s.name, unit: s.unit, color: s.color, confirm: false };
+      ui.edit = { id: s.id, name: s.name, unit: s.unit, color: s.color, places: (s.places || []).slice(), confirm: false };
       render();
       const f = document.getElementById('sport-form');
       if (f && window.innerWidth < 900) f.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -767,7 +828,7 @@
       const name = e.name.trim();
       if (!name) { showToast('Podaj nazwę sportu', true); return; }
       ui.edit = null;
-      updateSport(e.id, { name: name, unit: e.unit, color: e.color });
+      updateSport(e.id, { name: name, unit: e.unit, color: e.color, places: e.places || [] });
       showToast('Zapisano zmiany');
     },
     delSport() {
@@ -780,11 +841,11 @@
     },
     exportCsv() {
       const m = sportMap();
-      const rows = [['data', 'sport', 'ilosc', 'jednostka']].concat(
+      const rows = [['data', 'sport', 'ilosc', 'jednostka', 'miejsce']].concat(
         store.entries.slice().sort((a, b) => (a.date < b.date ? -1 : 1))
           .filter((e) => m[e.sport_id])
-          .map((e) => { const sp = m[e.sport_id]; const sh = shown(sp, e.amount); return [e.date, sp.name, isCheck(sp) ? 'tak' : sh.v, isCheck(sp) ? MIN_CHECK : sh.u]; })
-          .concat(weightsSorted().map((w) => [w.date, 'Waga', kgFmt(w.kg), 'kg'])));
+          .map((e) => { const sp = m[e.sport_id]; const sh = shown(sp, e.amount); return [e.date, sp.name, isCheck(sp) ? 'tak' : sh.v, isCheck(sp) ? MIN_CHECK : sh.u, e.place || '']; })
+          .concat(weightsSorted().map((w) => [w.date, 'Waga', kgFmt(w.kg), 'kg', ''])));
       const csv = '﻿' + rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(';')).join('\n');
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -825,6 +886,7 @@
     },
     wkg(v) { ui.wDraft.kg = parseFloat(String(v).replace(',', '.')) || null; },
     formName(v) { (ui.edit || ui.newSport).name = v; },
+    formPlace(v) { (ui.edit || ui.newSport).placeDraft = v; },
     email(v) { ui.auth.email = v.trim(); },
     pass(v) { ui.auth.pass = v; }
   };
@@ -875,12 +937,32 @@
     if (e.key === 'Escape' && ui.sheet) { ui.sheet = false; render(); }
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'amount') { e.preventDefault(); A.save(); }
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'wkg') { e.preventDefault(); A.saveWeight(); }
+    if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'formPlace') { e.preventDefault(); A.addPlace(); }
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'formName') { e.preventDefault(); ui.edit ? A.saveEdit() : A.addSport(); }
   });
   document.addEventListener('click', (e) => {
     const inp = e.target.closest && e.target.closest('.datepick input');
     if (inp && inp.showPicker) { try { inp.showPicker(); } catch (er) { /* iOS otwiera sam */ } }
   });
+  const tipEl = document.createElement('div');
+  tipEl.className = 'tip'; tipEl.setAttribute('role', 'tooltip'); tipEl.hidden = true;
+  document.body.appendChild(tipEl);
+  const canHover = window.matchMedia && window.matchMedia('(hover: hover)').matches;
+  document.addEventListener('mouseover', (e) => {
+    if (!canHover) return;
+    const t = e.target.closest && e.target.closest('[data-tip]');
+    if (!t) { tipEl.hidden = true; return; }
+    const lines = t.dataset.tip.split('\n');
+    tipEl.innerHTML = '<b>' + esc(lines[0]) + '</b>' + lines.slice(1).map((l) => '<div>' + esc(l) + '</div>').join('');
+    tipEl.hidden = false;
+    const r = t.getBoundingClientRect(), w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+    let x = r.left + r.width / 2 - w / 2, y = r.top - h - 8;
+    if (y < 8) y = r.bottom + 8;
+    x = Math.max(8, Math.min(x, window.innerWidth - w - 8));
+    tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
+  });
+  window.addEventListener('scroll', () => { tipEl.hidden = true; }, { passive: true });
+  document.addEventListener('click', () => { tipEl.hidden = true; });
   let rz = null;
   window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 150); });
   window.addEventListener('online', () => { flush().then(pull); });
@@ -906,7 +988,7 @@
   } else {
     if (store.owner !== 'local') { store = emptyStore('local'); }
     if (!Array.isArray(store.weights)) store.weights = [];
-    if (!store.sports.length) seedDefaults(); else { migrateV2(); render(); }
+    if (!store.sports.length) seedDefaults(); else { migrateV2(); migrateV3(); render(); }
   }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {

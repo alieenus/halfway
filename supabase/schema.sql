@@ -49,3 +49,7 @@ drop policy if exists "own weights" on public.weights;
 create policy "own weights" on public.weights
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 grant select, insert, update, delete on public.weights to authenticated;
+
+-- ===== v3: miejsca treningów =====
+alter table public.sports  add column if not exists places text[] not null default '{}';
+alter table public.entries add column if not exists place text;

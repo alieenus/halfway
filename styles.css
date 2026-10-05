@@ -238,3 +238,13 @@ h1, h2, h3 { margin: 0; }
 .wchart .wpt { cursor: pointer; outline: none; }
 .wchart .wpt:focus-visible circle:last-child { stroke: #17171B; }
 .tabbar button { font-size: 10.5px; }
+
+/* ---------- v3: miejsca, podpowiedzi ---------- */
+.place { display: flex; align-items: center; gap: 4px; }
+.place svg { flex: none; }
+.pill svg { flex: none; }
+.chip-x { width: 26px; height: 26px; margin-right: -8px; border: 0; background: var(--soft); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--muted2); padding: 0; }
+.chip-x svg { width: 12px; height: 12px; }
+.tip { position: fixed; z-index: 80; pointer-events: none; background: var(--ink); color: #fff; border-radius: 12px; padding: 9px 12px; font-size: 12px; font-weight: 600; line-height: 1.45; max-width: 260px; box-shadow: 0 8px 20px rgba(0,0,0,.22); }
+.tip b { display: block; font-weight: 800; font-size: 13px; margin-bottom: 2px; }
+.tip[hidden] { display: none; }
