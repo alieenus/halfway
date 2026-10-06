@@ -342,3 +342,12 @@ h1, h2, h3 { margin: 0; }
 .tabbar { padding-left: 4px; padding-right: 4px; }
 .tabbar button { font-size: 9.5px; letter-spacing: -0.01em; }
 @media (max-width: 899px) { .work-grid > div:last-child { order: -1; } }
+
+/* ---------- v8: przełącznik daty ---------- */
+.dpager { display: inline-flex; align-items: center; height: 40px; border-radius: 999px; border: 1px solid var(--line); background: #fff; overflow: hidden; }
+.dpager.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.dp-arr { width: 38px; height: 100%; border: 0; background: transparent; color: inherit; display: flex; align-items: center; justify-content: center; padding: 0; }
+.dp-arr svg { width: 16px; height: 16px; }
+.dp-arr:disabled { opacity: .3; cursor: default; }
+.dp-arr:not(:disabled):hover { background: rgba(127,127,127,.12); }
+.dp-mid { position: relative; height: 100%; display: flex; align-items: center; padding: 0 6px; font-weight: 800; font-size: 14px; white-space: nowrap; min-width: 82px; justify-content: center; cursor: pointer; }

@@ -616,8 +616,7 @@
     return '<div class="panel">' +
       '<div class="between"><h2 class="title">' + (d.editId ? 'Edytuj trening' : 'Nowy trening') + '</h2>' + (where === 'sheet' ? '<button type="button" class="close" data-a="closeSheet" aria-label="Zamknij">' + ICON.x + '</button>' : '') + '</div>' +
       '<div class="row" style="flex-wrap:wrap;gap:8px">' + datePill('Dziś', c.tk) + datePill('Wczoraj', yk) +
-        '<label class="pill datepick' + (other ? ' on' : '') + '">' + (other ? parseKey(d.date).getDate() + ' ' + M_SHORT[parseKey(d.date).getMonth()] : 'Inna data') +
-          '<input type="date" data-ch="date" max="' + c.tk + '" value="' + d.date + '" aria-label="Wybierz inną datę"></label></div>' +
+        datePager(d.date, 'pickDate', 'date', c.tk, other) + '</div>' +
       '<div class="field"><span class="lab">Co trenowałeś?</span><div class="sgrid">' + tiles + '</div></div>' +
       (sp.places && sp.places.length
         ? '<div class="field"><span class="lab">Gdzie?</span><div class="row" style="flex-wrap:wrap;gap:8px">' +
@@ -636,6 +635,17 @@
       '<button type="button" class="btn big" data-a="save"' + (already ? ' disabled' : '') + '><span style="width:12px;height:12px;border-radius:4px;background:' + sp.color + '"></span>' + (d.editId ? 'Zapisz zmiany' : chk ? 'Odhacz: ' + esc(sp.name) : 'Zapisz trening') + '</button>' +
       (d.editId ? '<button type="button" class="btn ' + (d.confirmDel ? 'danger' : 'soft') + '" data-a="delEdited">' + (d.confirmDel ? 'Na pewno usunąć ten wpis?' : 'Usuń wpis') + '</button>' : '') +
       '</div>';
+  }
+
+  // przełącznik daty: ‹ [Pn, 5 paź] › – środek otwiera kalendarz
+  function datePager(cur, act, ch, maxKey, hl) {
+    const d = parseKey(cur), prev = dkey(addDays(d, -1)), next = dkey(addDays(d, 1));
+    const canNext = !maxKey || next <= maxKey;
+    return '<div class="dpager' + (hl ? ' on' : '') + '">' +
+      '<button type="button" class="dp-arr" data-a="' + act + '" data-v="' + prev + '" aria-label="Dzień wcześniej">' + ICON.left + '</button>' +
+      '<label class="dp-mid datepick">' + DAYS_S[d.getDay()] + ', ' + d.getDate() + ' ' + M_SHORT[d.getMonth()] + (d.getFullYear() !== today().getFullYear() ? ' ' + d.getFullYear() : '') +
+        '<input type="date" data-ch="' + ch + '"' + (maxKey ? ' max="' + maxKey + '"' : '') + ' value="' + cur + '" aria-label="Wybierz datę"></label>' +
+      '<button type="button" class="dp-arr" data-a="' + act + '" data-v="' + next + '"' + (canNext ? '' : ' disabled') + ' aria-label="Dzień później">' + ICON.right + '</button></div>';
   }
 
   function amtWidth(v) { return (Math.max(1, String(v).length) * 0.62 + 0.1).toFixed(2) + 'em'; }
@@ -661,8 +671,7 @@
     const exists = store.weights.find((w) => w.date === d.date);
     return '<div class="stack-s" style="gap:14px">' +
       (compact ? '' : '<div class="row" style="flex-wrap:wrap;gap:8px">' + pill('Dziś', c.tk) + pill('Wczoraj', yk) +
-        '<label class="pill datepick' + (other ? ' on' : '') + '">' + (other ? parseKey(d.date).getDate() + ' ' + M_SHORT[parseKey(d.date).getMonth()] : 'Inna data') +
-        '<input type="date" data-ch="wdate" max="' + c.tk + '" value="' + d.date + '" aria-label="Wybierz datę pomiaru"></label></div>') +
+        datePager(d.date, 'wPickDate', 'wdate', c.tk, other) + '</div>') +
       '<div class="stepper"><button type="button" class="pm" data-a="wMinus" aria-label="Mniej o 0,1 kg">' + ICON.minus + '</button>' +
         '<div style="display:flex;align-items:baseline;gap:6px"><input id="wkg-' + sfx + '" data-in="wkg" type="text" inputmode="decimal" placeholder="82,4" value="' + (base === '' ? '' : kgFmt(base)) + '" aria-label="Waga w kg" style="width:3.2em"><span class="u">kg</span></div>' +
         '<button type="button" class="pm" data-a="wPlus" aria-label="Więcej o 0,1 kg">' + ICON.plus + '</button></div>' +
@@ -1005,8 +1014,7 @@
     const form = '<section class="card stack" style="gap:14px">' +
       '<div class="between"><h2 class="h2">' + (ex ? 'Edytuj dzień' : 'Wpisz dzień') + '</h2><span class="small">' + esc(longDate(parseKey(wk.date))) + '</span></div>' +
       '<div class="row" style="flex-wrap:wrap;gap:8px">' + pill('Dziś', c.tk) + pill('Wczoraj', yk) +
-        '<label class="pill datepick' + (other ? ' on' : '') + '">' + (other ? parseKey(wk.date).getDate() + ' ' + M_SHORT[parseKey(wk.date).getMonth()] : 'Inna data') +
-        '<input type="date" data-ch="wkDate" value="' + wk.date + '" aria-label="Wybierz dzień"></label></div>' +
+        datePager(wk.date, 'wkDate', 'wkDate', null, other) + '</div>' +
       '<div class="seg"><button type="button" class="pill' + (!leave ? ' on' : '') + '" data-a="wkKind" data-v="work">' + ICON.work.replace(/24/g, '16') + 'Praca</button>' +
         '<button type="button" class="pill' + (leave ? ' on' : '') + '" data-a="wkKind" data-v="leave"><span class="ubadge">U</span>Urlop</button></div>' +
       (leave
@@ -1158,7 +1166,7 @@
     stSport(d) { ui.stSport = d.id; render(); },
     stPeriod(d) { ui.stPeriod = d.v; render(); },
     regAll() { ui.regAll = !ui.regAll; render(); },
-    wkDate(d) { Object.assign(ui.wk, workDraftFor(d.v)); render(); },
+    wkDate(d) { Object.assign(ui.wk, workDraftFor(d.v)); const dd = parseKey(d.v); ui.wk.y = dd.getFullYear(); ui.wk.m = dd.getMonth(); render(); },
     wkPick(d) { const dd = parseKey(d.k); Object.assign(ui.wk, workDraftFor(d.k)); render(); if (window.innerWidth < 900) { const f = document.querySelector('.sports-grid > div:last-child'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' }); } },
     wkKind(d) { ui.wk.kind = d.v; render(); },
     wkMinus() { ui.wk.hours = Math.max(0.5, Math.round((ui.wk.hours - 0.5) * 2) / 2); render(); },
@@ -1207,7 +1215,8 @@
         return;
       }
       ui.lastSport = s.id;
-      ui.sheet = false;
+      // uzupełnianie historii: dla przeszłych dni panel zostaje otwarty z tą samą datą
+      if (date === dkey(today())) ui.sheet = false;
       ui.selDay = date;
       const dd = parseKey(date); ui.calY = dd.getFullYear(); ui.calM = dd.getMonth();
       addEntry(date, s.id, amt, place);
@@ -1324,7 +1333,7 @@
   const CH = {
     date(v) { if (v && parseKey(v) <= today()) ui.draft.date = v; render(); },
     editDay(v) { if (v && parseKey(v) < today()) ui.editDay = v; render(); },
-    wkDate(v) { if (v) { Object.assign(ui.wk, workDraftFor(v)); render(); } },
+    wkDate(v) { if (v) { Object.assign(ui.wk, workDraftFor(v)); const dd = parseKey(v); ui.wk.y = dd.getFullYear(); ui.wk.m = dd.getMonth(); render(); } },
     wdate(v) { if (v && parseKey(v) <= today()) ui.wDraft.date = v; render(); }
   };
 
