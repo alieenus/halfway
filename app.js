@@ -805,6 +805,41 @@
       '<text x="60" y="66" text-anchor="middle" class="ringv">' + Math.round(f * 100) + '%</text></svg>';
   }
 
+  // regularność wg miesięcy: pasek postępu + kwadraciki dni
+  function regularity(c, selSp) {
+    const ents = store.entries.filter((e) => c.smap[e.sport_id] && (!selSp || e.sport_id === selSp.id));
+    if (!ents.length) return '';
+    const first = parseKey(ents.map((e) => e.date).sort()[0]);
+    const byDay = {};
+    ents.forEach((e) => { (byDay[e.date] = byDay[e.date] || []).push(e); });
+    const months = [];
+    for (let m = new Date(c.T.getFullYear(), c.T.getMonth(), 1); m >= new Date(first.getFullYear(), first.getMonth(), 1); m = new Date(m.getFullYear(), m.getMonth() - 1, 1)) months.push(m);
+    const shown = ui.regAll ? months : months.slice(0, 6);
+    const rows = shown.map((m) => {
+      const dim = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+      const live = m.getFullYear() === c.T.getFullYear() && m.getMonth() === c.T.getMonth();
+      const tot = live ? c.T.getDate() : dim;
+      let cnt = 0, cells = '';
+      for (let d = 1; d <= 31; d++) {
+        if (d > dim) { cells += '<i class="none"></i>'; continue; }
+        const k = dkey(new Date(m.getFullYear(), m.getMonth(), d));
+        if (live && d > c.T.getDate()) { cells += '<i class="fut"></i>'; continue; }
+        const on = !!byDay[k];
+        if (on) cnt++;
+        cells += '<i class="' + (on ? 'on' : '') + '" data-tip="' + esc(dayTip(c, k)) + '"></i>';
+      }
+      const pct = Math.round((cnt / tot) * 100);
+      return '<div class="reg-row"><div class="mn">' + M_NOM[m.getMonth()] + '<small>' + m.getFullYear() + (live ? ' · w toku' : '') + '</small></div>' +
+        '<div class="reg-mid"><div class="reg-bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '" aria-label="' + M_NOM[m.getMonth()] + ': ' + pct + '%"><div style="width:' + pct + '%"></div></div>' +
+        '<div class="reg-days">' + cells + '</div></div>' +
+        '<div class="pv">' + pct + '%<small>' + cnt + ' z ' + tot + ' dni</small></div></div>';
+    }).join('');
+    return '<section class="card stack-s"><h2 class="h2 st">Regularność wg miesięcy' + (selSp ? ' – ' + esc(selSp.name) : '') + '</h2>' +
+      '<div class="small">Pasek = % dni z treningiem · kwadracik = dzień (czarny = był trening)</div>' + rows +
+      (months.length > 6 ? '<button type="button" class="btn soft" data-a="regAll" style="margin-top:6px">' + (ui.regAll ? 'Pokaż mniej' : 'Pokaż wszystkie miesiące (' + months.length + ')') + '</button>' : '') +
+      '</section>';
+  }
+
   function viewStats(c) {
     const all = sports();
     const selSp = ui.stSport !== 'all' ? c.smap[ui.stSport] : null;
@@ -915,7 +950,7 @@
       '<div class="hist-grid">' +
         '<section class="card stack-s"><h2 class="h2 st">Dni tygodnia</h2><div class="small">' + (wd.some((v) => v) ? 'Najmocniej: ' + wdFull[topWd].toLowerCase() : 'Brak danych') + ' · od początku</div>' + wdChart + '</section>' +
         '<section class="card stack-s"><h2 class="h2 st">Rekordy i sumy</h2><div class="recs">' + recs.map((r) => '<div class="rec-row"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join('') + '</div></section>' +
-      '</div>' +
+      '</div>' + regularity(c, selSp) +
       (split || places ? '<div class="hist-grid">' + split + places + '</div>' : '');
   }
 
@@ -1019,6 +1054,7 @@
     editDay(d) { ui.editDay = d.k; render(); },
     stSport(d) { ui.stSport = d.id; render(); },
     stPeriod(d) { ui.stPeriod = d.v; render(); },
+    regAll() { ui.regAll = !ui.regAll; render(); },
     pickDate(d) { ui.draft.date = d.v; render(); },
     pickSport(d) {
       const s = sportMap()[d.id];
@@ -1240,7 +1276,7 @@
   window.addEventListener('scroll', () => { tipEl.hidden = true; }, { passive: true });
   document.addEventListener('click', (e) => {
     // na telefonie (bez najechania) stuknięcie słupka/paska w Statystykach pokazuje dymek
-    const t = !canHover && e.target.closest && e.target.closest('.schart [data-tip], .hrow[data-tip]');
+    const t = !canHover && e.target.closest && e.target.closest('.schart [data-tip], .hrow[data-tip], .reg-days [data-tip]');
     if (t) showTip(t); else tipEl.hidden = true;
   });
   let rz = null;
