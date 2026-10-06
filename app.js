@@ -19,7 +19,7 @@
   const OLD_COLORS = { '#3DAA6A': '#4CAF50', '#3E63DD': '#2962FF', '#E5B700': '#FFD700', '#B8860B': '#FFD700', '#DC3B41': '#FF1E00', '#A23CB8': '#9C27B0', '#8E4EC6': '#673AB7', '#0D8F99': '#089981', '#2B9358': '#4CAF50', '#E0590A': '#FF8A00', '#C2357F': '#E91E63', '#6B5E14': '#8B1E2D' };
   // tekst na kolorowym tle: ciemny na jasnych kolorach (żółty), biały na pozostałych
   // ikony sportów (maski PNG w icons/sports, kolor = kolor tekstu)
-  const SPORT_ICONS = [[/pomp/, 'pompki'], [/przysiad/, 'przysiady'], [/kosz/, 'koszykowka'], [/pi[łl]k|no[żz]n|footb/, 'pilka'], [/rower|bike/, 'rower']];
+  const SPORT_ICONS = [[/pomp/, 'pompki'], [/przysiad/, 'przysiady'], [/kosz/, 'koszykowka'], [/pi[łl]k|no[żz]n|footb/, 'pilka'], [/rower|bike/, 'rower'], [/p[łl]yw|basen|swim/, 'plywanie'], [/ogr[oó]d|podlew|dzia[łl]k/, 'ogrod'], [/spacer|chodz|marsz|walk/, 'spacer']];
   function iconFor(sp) {
     const n = (sp.name || '').toLowerCase();
     const hit = SPORT_ICONS.find((x) => x[0].test(n));
@@ -212,6 +212,18 @@
     return changed;
   }
 
+  // v5: nowe sporty z ikonami (pływanie, ogród, spacer) – dodawane raz na urządzenie, jeśli ich brak
+  const NEW_V5 = [{ name: 'Pływanie', color: '#00BCD4', unit: 'tak', ic: 'plywanie' }, { name: 'Ogród', color: '#B1E457', unit: 'tak', ic: 'ogrod' }, { name: 'Spacer', color: '#FF8A00', unit: 'tak', ic: 'spacer' }];
+  function migrateV5() {
+    const key = 'halfway:v5:' + (store.owner || 'x');
+    try { if (localStorage.getItem(key)) return false; } catch (e) { /* */ }
+    let added = false;
+    NEW_V5.forEach((n) => { if (!store.sports.some((sp) => iconFor(sp) === n.ic)) { addSport(n.name, n.color, n.unit, true); added = true; } });
+    try { localStorage.setItem(key, '1'); } catch (e) { /* */ }
+    if (added) saveLocal();
+    return added;
+  }
+
   // ---------- waga ----------
   function setWeight(date, kg) {
     const ex = store.weights.find((w) => w.date === date);
@@ -305,7 +317,7 @@
       saveLocal();
       ui.syncing = false;
       if (!store.sports.length) seedDefaults();
-      else { const m2 = migrateV2(), m3 = migrateV3(), m4 = migrateV4(); if (m2 || m3 || m4) { render(); flush(); } }
+      else { const m2 = migrateV2(), m3 = migrateV3(), m4 = migrateV4(), m5 = migrateV5(); if (m2 || m3 || m4 || m5) { render(); flush(); } }
     } catch (e) {
       console.warn('HalfWay pull', e);
     }
@@ -1304,7 +1316,7 @@
   } else {
     if (store.owner !== 'local') { store = emptyStore('local'); }
     if (!Array.isArray(store.weights)) store.weights = [];
-    if (!store.sports.length) seedDefaults(); else { migrateV2(); migrateV3(); migrateV4(); render(); }
+    if (!store.sports.length) seedDefaults(); else { migrateV2(); migrateV3(); migrateV4(); migrateV5(); render(); }
   }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
