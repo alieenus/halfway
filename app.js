@@ -59,6 +59,7 @@
   const M_SHORT = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
 
   const ICON = {
+    work: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="3"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M3 12.5h18"/></svg>',
     chart: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><rect x="5.5" y="11" width="3" height="6" rx="1" fill="currentColor" stroke="none"/><rect x="10.5" y="6" width="3" height="11" rx="1" fill="currentColor" stroke="none"/><rect x="15.5" y="13" width="3" height="4" rx="1" fill="currentColor" stroke="none"/></svg>',
     pin: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>',
     cal: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/><rect x="8" y="13" width="4" height="4" rx="1" fill="currentColor" stroke="none"/></svg>',
@@ -94,7 +95,7 @@
 
   // ---------- dane (cache lokalny + kolejka zmian do wysłania) ----------
   const LS = 'halfway:data:v1';
-  const emptyStore = (owner) => ({ owner: owner || null, sports: [], entries: [], weights: [], queue: [] });
+  const emptyStore = (owner) => ({ owner: owner || null, sports: [], entries: [], weights: [], work: [], queue: [] });
   let store = emptyStore();
   try {
     const s = JSON.parse(localStorage.getItem(LS));
@@ -279,12 +280,13 @@
 
   function applyQueue() {
     store.queue.forEach((op) => {
-      const arr = store[op.t];
+      const key = op.t === 'work_days' ? 'work' : op.t;
+      const arr = store[key] || (store[key] = []);
       if (op.op === 'upsert') {
         const i = arr.findIndex((x) => x.id === op.row.id);
         if (i >= 0) arr[i] = Object.assign({}, op.row); else arr.push(Object.assign({}, op.row));
       } else {
-        store[op.t] = arr.filter((x) => x.id !== op.id);
+        store[key] = arr.filter((x) => x.id !== op.id);
       }
     });
   }
@@ -309,10 +311,14 @@
         from += size;
       }
       const w = await sb.from('weights').select('id,date,kg').order('date');
+      const wd = await sb.from('work_days').select('id,date,hours,kind').order('date');
+      ui.workMissing = !!wd.error;
       ui.weightsMissing = !!w.error;
       store.sports = sp.data;
       store.entries = entries.map((e) => Object.assign({}, e, { amount: Number(e.amount) }));
       if (!w.error) store.weights = w.data.map((x) => Object.assign({}, x, { kg: Number(x.kg) }));
+      if (!wd.error) store.work = wd.data.map((x) => Object.assign({}, x, { hours: Number(x.hours) }));
+      if (!Array.isArray(store.work)) store.work = [];
       applyQueue();
       saveLocal();
       ui.syncing = false;
@@ -966,6 +972,91 @@
       (split || places ? '<div class="hist-grid">' + split + places + '</div>' : '');
   }
 
+  // ---------- praca (Work) ----------
+  const hFmt = (h) => (Math.round(h * 10) / 10).toString().replace('.', ',');
+  const workByDate = () => { const m = {}; (store.work || []).forEach((w) => { m[w.date] = w; }); return m; };
+  function setWork(date, hours, kind) {
+    store.work = store.work || [];
+    const ex = store.work.find((w) => w.date === date);
+    const row = ex ? Object.assign(ex, { hours: hours, kind: kind }) : { id: uuid(), date: date, hours: hours, kind: kind };
+    if (!ex) store.work.push(row);
+    enqueue({ t: 'work_days', op: 'upsert', row: Object.assign({}, row) });
+  }
+  function deleteWork(id) {
+    store.work = (store.work || []).filter((w) => w.id !== id);
+    enqueue({ t: 'work_days', op: 'delete', id: id });
+  }
+  function workDraftFor(date) {
+    const ex = workByDate()[date];
+    if (ex) return { date: date, hours: ex.kind === 'leave' ? 8 : Number(ex.hours), kind: ex.kind };
+    const last = (store.work || []).filter((w) => w.kind === 'work').sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+    return { date: date, hours: last ? Number(last.hours) : 8, kind: 'work' };
+  }
+
+  function viewWork(c) {
+    if (!ui.wk) ui.wk = Object.assign({ y: c.T.getFullYear(), m: c.T.getMonth() }, workDraftFor(c.tk));
+    const wk = ui.wk, map = workByDate();
+    const ex = map[wk.date];
+    const yk = dkey(addDays(c.T, -1));
+    const other = wk.date !== c.tk && wk.date !== yk;
+    const pill = (label, k) => '<button type="button" class="pill' + (wk.date === k ? ' on' : '') + '" data-a="wkDate" data-v="' + k + '">' + label + '</button>';
+    const leave = wk.kind === 'leave';
+    const quick = [4, 6, 7.5, 8, 10].map((v) => '<button type="button" class="pill' + (!leave && wk.hours === v ? ' on' : '') + '" data-a="wkQuick" data-v="' + v + '">' + hFmt(v) + '</button>').join('');
+    const form = '<section class="card stack" style="gap:14px">' +
+      '<div class="between"><h2 class="h2">' + (ex ? 'Edytuj dzień' : 'Wpisz dzień') + '</h2><span class="small">' + esc(longDate(parseKey(wk.date))) + '</span></div>' +
+      '<div class="row" style="flex-wrap:wrap;gap:8px">' + pill('Dziś', c.tk) + pill('Wczoraj', yk) +
+        '<label class="pill datepick' + (other ? ' on' : '') + '">' + (other ? parseKey(wk.date).getDate() + ' ' + M_SHORT[parseKey(wk.date).getMonth()] : 'Inna data') +
+        '<input type="date" data-ch="wkDate" value="' + wk.date + '" aria-label="Wybierz dzień"></label></div>' +
+      '<div class="seg"><button type="button" class="pill' + (!leave ? ' on' : '') + '" data-a="wkKind" data-v="work">' + ICON.work.replace(/24/g, '16') + 'Praca</button>' +
+        '<button type="button" class="pill' + (leave ? ' on' : '') + '" data-a="wkKind" data-v="leave"><span class="ubadge">U</span>Urlop</button></div>' +
+      (leave
+        ? '<div class="leave-info"><span class="ubadge big">U</span><div><b>Dzień urlopu</b><div>Zapisze się jako „U”, bez godzin.</div></div></div>'
+        : '<div class="stepper"><button type="button" class="pm" data-a="wkMinus" aria-label="Mniej o pół godziny">' + ICON.minus + '</button>' +
+            '<div style="display:flex;align-items:baseline;gap:6px"><input id="wk-hours" data-in="wkHours" type="text" inputmode="decimal" value="' + hFmt(wk.hours) + '" aria-label="Godziny pracy" style="width:' + (hFmt(wk.hours).length * 0.62 + 0.2).toFixed(2) + 'em"><span class="u">h</span></div>' +
+            '<button type="button" class="pm" data-a="wkPlus" aria-label="Więcej o pół godziny">' + ICON.plus + '</button></div>' +
+          '<div class="quick" style="grid-template-columns:repeat(5,minmax(0,1fr))">' + quick + '</div>') +
+      '<button type="button" class="btn big" data-a="wkSave">' + (ex ? 'Zapisz zmiany' : leave ? 'Zapisz urlop' : 'Zapisz godziny') + '</button>' +
+      (ex ? '<button type="button" class="btn soft" data-a="wkDel" data-id="' + ex.id + '">Usuń wpis z tego dnia</button>' : '') +
+      '</section>';
+
+    // miesiąc
+    const first = new Date(wk.y, wk.m, 1), dim = new Date(wk.y, wk.m + 1, 0).getDate();
+    const lead = (first.getDay() + 6) % 7;
+    let hours = 0, wdays = 0, ldays = 0;
+    let grid = '', weekSum = 0, col = 0;
+    const cell = (html) => { grid += html; col++; if (col === 7) { grid += '<div class="wsum">' + (weekSum ? hFmt(weekSum) + ' h' : '') + '</div>'; col = 0; weekSum = 0; } };
+    for (let b = 0; b < lead; b++) cell('<div></div>');
+    for (let d = 1; d <= dim; d++) {
+      const dt = new Date(wk.y, wk.m, d), k = dkey(dt), w = map[k];
+      let cls = 'wday', inner = '<span class="n">' + d + '</span>';
+      if (w && w.kind === 'leave') { cls += ' leave'; inner += '<span class="v">U</span>'; ldays++; }
+      else if (w) { const h = Number(w.hours); hours += h; weekSum += h; wdays++; cls += ' work'; inner += '<span class="v">' + hFmt(h) + '</span>'; }
+      if (k === c.tk) cls += ' today';
+      if (k === wk.date) cls += ' sel';
+      const shade = w && w.kind !== 'leave' ? Math.min(1, Number(w.hours) / 10) : 0;
+      cell('<button type="button" class="' + cls + '" data-a="wkPick" data-k="' + k + '"' + (shade ? ' style="--a:' + (0.12 + shade * 0.5).toFixed(2) + '"' : '') +
+        ' aria-label="' + esc(longDate(dt) + (w ? (w.kind === 'leave' ? ': urlop' : ': ' + hFmt(w.hours) + ' h') : '')) + '">' + inner + '</button>');
+    }
+    while (col !== 0) cell('<div></div>');
+    const tiles = '<div class="stats">' +
+      '<div class="stat"><b>' + hFmt(hours) + '</b><span class="small">Godziny w ' + M_LOC[wk.m] + '</span></div>' +
+      '<div class="stat"><b>' + wdays + '</b><span class="small">Dni pracy</span></div>' +
+      '<div class="stat"><b>' + ldays + '</b><span class="small">Dni urlopu (U)</span></div>' +
+    '</div>';
+    const yearLeave = (store.work || []).filter((w) => w.kind === 'leave' && w.date.slice(0, 4) === String(wk.y)).length;
+    const cal = '<section class="card stack-s" style="padding:14px 12px 16px">' +
+      '<div class="between"><button type="button" class="icon-btn" style="color:var(--ink)" data-a="wkPrev" aria-label="Poprzedni miesiąc">' + ICON.left + '</button>' +
+      '<h2 class="h2" style="font-size:19px">' + M_NOM[wk.m] + ' ' + wk.y + '</h2>' +
+      '<button type="button" class="icon-btn" style="color:var(--ink)" data-a="wkNext" aria-label="Następny miesiąc">' + ICON.right + '</button></div>' +
+      '<div class="wgrid head"><div>Pn</div><div>Wt</div><div>Śr</div><div>Cz</div><div>Pt</div><div>Sb</div><div>Nd</div><div>Σ</div></div>' +
+      '<div class="wgrid">' + grid + '</div>' +
+      '<div class="small" style="font-weight:600">Stuknij dzień, żeby go wpisać albo poprawić · średnio ' + (wdays ? hFmt(Math.round(hours / wdays * 10) / 10) : '0') + ' h na dzień pracy · urlop w ' + wk.y + ': ' + yearLeave + ' ' + plural(yearLeave, 'dzień', 'dni', 'dni') + '</div>' +
+      '</section>';
+    return '<div class="top"><h1 class="h1">Work</h1>' + syncBadge() + '</div>' +
+      (ui.workMissing ? '<div class="banner">Tabela godzin pracy nie jest jeszcze utworzona w Supabase – uruchom SQL z instrukcji, a wpisy zapiszą się w chmurze.</div>' : '') +
+      '<div class="sports-grid work-grid"><div class="stack">' + tiles + cal + '</div><div>' + form + '</div></div>';
+  }
+
   function viewLogin() {
     const a = ui.auth, login = a.mode === 'login';
     return '<div class="login"><form class="box" data-submit="auth" novalidate>' +
@@ -992,11 +1083,11 @@
   function viewApp() {
     const c = compute();
     const tab = ui.tab;
-    const body = tab === 'history' ? viewHistory(c) : tab === 'sports' ? viewSports(c) : tab === 'weight' ? viewWeight(c) : tab === 'stats' ? viewStats(c) : viewToday(c);
-    const nav = [['today', 'Dziś', ICON.cal], ['history', 'Ciągłość', ICON.grid], ['weight', 'Waga', ICON.scale], ['stats', 'Statystyki', ICON.chart], ['sports', 'Sporty', ICON.list]];
+    const body = tab === 'history' ? viewHistory(c) : tab === 'sports' ? viewSports(c) : tab === 'weight' ? viewWeight(c) : tab === 'stats' ? viewStats(c) : tab === 'work' ? viewWork(c) : viewToday(c);
+    const nav = [['today', 'Dziś', ICON.cal], ['history', 'Ciągłość', ICON.grid], ['weight', 'Waga', ICON.scale], ['stats', 'Statystyki', ICON.chart], ['work', 'Work', ICON.work], ['sports', 'Sporty', ICON.list]];
     const sidebar = '<aside class="sidebar"><div class="brand"><span class="logo"><span style="background:#FF1E00"></span><span style="background:#2962FF"></span><span style="background:#FFD700"></span><span style="background:#4CAF50"></span></span>HalfWay</div>' +
       nav.map((n) => '<button type="button" class="nav' + (tab === n[0] ? ' on' : '') + '" data-a="tab" data-v="' + n[0] + '">' + n[2] + n[1] + '</button>').join('') +
-      '<div class="foot">' + (tab === 'sports' || tab === 'weight' || tab === 'stats' ? '<button type="button" class="btn" data-a="open">' + ICON.plus + 'Dodaj trening</button>' : '') + '</div></aside>';
+      '<div class="foot">' + (tab === 'sports' || tab === 'weight' || tab === 'stats' || tab === 'work' ? '<button type="button" class="btn" data-a="open">' + ICON.plus + 'Dodaj trening</button>' : '') + '</div></aside>';
     const tabbar = '<nav class="tabbar" aria-label="Nawigacja">' +
       nav.map((n) => '<button type="button" class="' + (tab === n[0] ? 'on' : '') + '" data-a="tab" data-v="' + n[0] + '">' + n[2] + n[1] + '</button>').join('') + '</nav>';
     const fab = tab === 'today' ? '<button type="button" class="fab" data-a="open" aria-label="Dodaj trening">' + ICON.plus + '</button>' : '';
@@ -1067,6 +1158,26 @@
     stSport(d) { ui.stSport = d.id; render(); },
     stPeriod(d) { ui.stPeriod = d.v; render(); },
     regAll() { ui.regAll = !ui.regAll; render(); },
+    wkDate(d) { Object.assign(ui.wk, workDraftFor(d.v)); render(); },
+    wkPick(d) { const dd = parseKey(d.k); Object.assign(ui.wk, workDraftFor(d.k)); render(); if (window.innerWidth < 900) { const f = document.querySelector('.sports-grid > div:last-child'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' }); } },
+    wkKind(d) { ui.wk.kind = d.v; render(); },
+    wkMinus() { ui.wk.hours = Math.max(0.5, Math.round((ui.wk.hours - 0.5) * 2) / 2); render(); },
+    wkPlus() { ui.wk.hours = Math.min(24, Math.round((ui.wk.hours + 0.5) * 2) / 2); render(); },
+    wkQuick(d) { ui.wk.hours = Number(d.v); ui.wk.kind = 'work'; render(); },
+    wkPrev() { ui.wk.m--; if (ui.wk.m < 0) { ui.wk.m = 11; ui.wk.y--; } render(); },
+    wkNext() { ui.wk.m++; if (ui.wk.m > 11) { ui.wk.m = 0; ui.wk.y++; } render(); },
+    wkSave() {
+      const wk = ui.wk;
+      const h = Math.round(Number(wk.hours) * 2) / 2;
+      if (wk.kind === 'work' && !(h > 0 && h <= 24)) { showToast('Wpisz godziny, np. 7,5', true); return; }
+      setWork(wk.date, wk.kind === 'leave' ? 0 : h, wk.kind);
+      const dd = parseKey(wk.date); wk.y = dd.getFullYear(); wk.m = dd.getMonth();
+      showToast(wk.kind === 'leave' ? 'Zapisano urlop: ' + dd.getDate() + ' ' + M_SHORT[dd.getMonth()] : 'Zapisano: ' + hFmt(h) + ' h · ' + dd.getDate() + ' ' + M_SHORT[dd.getMonth()]);
+    },
+    wkDel(d) {
+      if (!ui.wkConfirm) { ui.wkConfirm = true; showToast('Stuknij jeszcze raz, żeby usunąć', true); setTimeout(() => { ui.wkConfirm = false; }, 3000); return; }
+      ui.wkConfirm = false; deleteWork(d.id); Object.assign(ui.wk, workDraftFor(ui.wk.date)); showToast('Usunięto wpis');
+    },
     pickDate(d) { ui.draft.date = d.v; render(); },
     pickSport(d) {
       const s = sportMap()[d.id];
@@ -1163,7 +1274,8 @@
         store.entries.slice().sort((a, b) => (a.date < b.date ? -1 : 1))
           .filter((e) => m[e.sport_id])
           .map((e) => { const sp = m[e.sport_id]; const sh = shown(sp, e.amount); return [e.date, sp.name, isCheck(sp) ? 'tak' : sh.v, isCheck(sp) ? MIN_CHECK : sh.u, e.place || '']; })
-          .concat(weightsSorted().map((w) => [w.date, 'Waga', kgFmt(w.kg), 'kg', ''])));
+          .concat(weightsSorted().map((w) => [w.date, 'Waga', kgFmt(w.kg), 'kg', '']))
+          .concat((store.work || []).slice().sort((a, b) => (a.date < b.date ? -1 : 1)).map((w) => [w.date, 'Praca', w.kind === 'leave' ? 'U' : hFmt(w.hours), w.kind === 'leave' ? 'urlop' : 'h', ''])));
       const csv = '﻿' + rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(';')).join('\n');
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -1202,6 +1314,7 @@
         if (h) h.textContent = num(Math.round(ui.draft.amount * 100) / 10);
       }
     },
+    wkHours(v, el) { const n = parseFloat(String(v).replace(',', '.')); ui.wk.hours = isNaN(n) ? 0 : n; if (el) el.style.width = (String(v).length * 0.62 + 0.2).toFixed(2) + 'em'; },
     wkg(v) { ui.wDraft.kg = parseFloat(String(v).replace(',', '.')) || null; },
     formName(v) { (ui.edit || ui.newSport).name = v; },
     formPlace(v) { (ui.edit || ui.newSport).placeDraft = v; },
@@ -1211,6 +1324,7 @@
   const CH = {
     date(v) { if (v && parseKey(v) <= today()) ui.draft.date = v; render(); },
     editDay(v) { if (v && parseKey(v) < today()) ui.editDay = v; render(); },
+    wkDate(v) { if (v) { Object.assign(ui.wk, workDraftFor(v)); render(); } },
     wdate(v) { if (v && parseKey(v) <= today()) ui.wDraft.date = v; render(); }
   };
 
@@ -1257,6 +1371,7 @@
     if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('editable')) { e.preventDefault(); A.editEntry({ id: e.target.dataset.id }); }
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'amount') { e.preventDefault(); A.save(); }
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'wkg') { e.preventDefault(); A.saveWeight(); }
+    if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'wkHours') { e.preventDefault(); A.wkSave(); }
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'formPlace') { e.preventDefault(); A.addPlace(); }
     if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'formName') { e.preventDefault(); ui.edit ? A.saveEdit() : A.addSport(); }
   });
@@ -1316,6 +1431,7 @@
   } else {
     if (store.owner !== 'local') { store = emptyStore('local'); }
     if (!Array.isArray(store.weights)) store.weights = [];
+    if (!Array.isArray(store.work)) store.work = [];
     if (!store.sports.length) seedDefaults(); else { migrateV2(); migrateV3(); migrateV4(); migrateV5(); render(); }
   }
 

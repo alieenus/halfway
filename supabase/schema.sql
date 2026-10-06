@@ -53,3 +53,19 @@ grant select, insert, update, delete on public.weights to authenticated;
 -- ===== v3: miejsca treningów =====
 alter table public.sports  add column if not exists places text[] not null default '{}';
 alter table public.entries add column if not exists place text;
+
+-- ===== v7: godziny pracy (Work) =====
+create table if not exists public.work_days (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references auth.users on delete cascade,
+  date        date not null,
+  hours       numeric(4,1) not null default 0 check (hours >= 0 and hours <= 24),
+  kind        text not null default 'work' check (kind in ('work', 'leave')),
+  created_at  timestamptz not null default now(),
+  unique (user_id, date)
+);
+alter table public.work_days enable row level security;
+drop policy if exists "own work" on public.work_days;
+create policy "own work" on public.work_days
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+grant select, insert, update, delete on public.work_days to authenticated;

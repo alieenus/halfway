@@ -1,5 +1,5 @@
 // HalfWay – service worker: aplikacja otwiera się też bez internetu.
-const VERSION = 'halfway-v10';
+const VERSION = 'halfway-v11';
 const SHELL = [
   './', 'index.html', 'styles.css', 'app.js', 'config.js', 'vendor/supabase.js',
   'manifest.webmanifest', 'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/favicon.png',
