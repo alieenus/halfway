@@ -1001,7 +1001,7 @@
     const other = wk.date !== c.tk && wk.date !== yk;
     const pill = (label, k) => '<button type="button" class="pill' + (wk.date === k ? ' on' : '') + '" data-a="wkDate" data-v="' + k + '">' + label + '</button>';
     const leave = wk.kind === 'leave';
-    const quick = [4, 6, 7.5, 8, 10].map((v) => '<button type="button" class="pill' + (!leave && wk.hours === v ? ' on' : '') + '" data-a="wkQuick" data-v="' + v + '">' + hFmt(v) + '</button>').join('');
+    const quick = [6, 6.5, 7, 7.5, 8].map((v) => '<button type="button" class="pill' + (!leave && wk.hours === v ? ' on' : '') + '" data-a="wkQuick" data-v="' + v + '">' + hFmt(v) + '</button>').join('');
     const form = '<section class="card stack" style="gap:14px">' +
       '<div class="between"><h2 class="h2">' + (ex ? 'Edytuj dzień' : 'Wpisz dzień') + '</h2><span class="small">' + esc(longDate(parseKey(wk.date))) + '</span></div>' +
       '<div class="row" style="flex-wrap:wrap;gap:8px">' + pill('Dziś', c.tk) + pill('Wczoraj', yk) +
