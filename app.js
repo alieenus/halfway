@@ -12,8 +12,11 @@
     : null;
 
   // kolory sprawdzone walidatorem palety (rozróżnialne także przy daltonizmie, w parze z nazwami)
-  const C_GREEN = '#3DAA6A', C_BLUE = '#3E63DD', C_GOLD = '#B8860B', C_YELLOW = '#E5B700', C_RED = '#DC3B41', C_PURPLE = '#A23CB8';
-  const COLORS = [C_GREEN, C_BLUE, C_YELLOW, C_RED, C_PURPLE, '#0D8F99', '#E0590A', '#C2357F'];
+  const C_GREEN = '#4CAF50', C_BLUE = '#2962FF', C_GOLD = '#B8860B', C_YELLOW = '#FFD700', C_RED = '#FF1E00', C_PURPLE = '#9C27B0';
+  // paleta 12 kolorów sportów (od Kamila)
+  const COLORS = ['#FFD700', '#8B1E2D', '#FF8A00', '#FF1E00', '#4CAF50', '#089981', '#00BCD4', '#2962FF', '#673AB7', '#9C27B0', '#E91E63', '#B1E457'];
+  // stare kolory -> najbliższe z nowej palety
+  const OLD_COLORS = { '#3DAA6A': '#4CAF50', '#3E63DD': '#2962FF', '#E5B700': '#FFD700', '#B8860B': '#FFD700', '#DC3B41': '#FF1E00', '#A23CB8': '#9C27B0', '#8E4EC6': '#673AB7', '#0D8F99': '#089981', '#2B9358': '#4CAF50', '#E0590A': '#FF8A00', '#C2357F': '#E91E63', '#6B5E14': '#8B1E2D' };
   // tekst na kolorowym tle: ciemny na jasnych kolorach (żółty), biały na pozostałych
   // ikony sportów (maski PNG w icons/sports, kolor = kolor tekstu)
   const SPORT_ICONS = [[/pomp/, 'pompki'], [/przysiad/, 'przysiady'], [/kosz/, 'koszykowka'], [/pi[łl]k|no[żz]n|footb/, 'pilka'], [/rower|bike/, 'rower']];
@@ -26,7 +29,7 @@
     const ic = iconFor(sp);
     return ic ? '<span class="sicon" style="-webkit-mask-image:url(icons/sports/' + ic + '.png);mask-image:url(icons/sports/' + ic + '.png)"></span>' : esc(sp.name.charAt(0));
   }
-  const onColor = (hex) => { const n = parseInt(hex.slice(1), 16); const r = n >> 16, g = (n >> 8) & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) > 170 ? '#17171B' : '#FFFFFF'; };
+  const onColor = (hex) => { const n = parseInt(hex.slice(1), 16); const r = n >> 16, g = (n >> 8) & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#17171B' : '#FFFFFF'; };
   // x10 = wpisujesz liczbę dziesiątek (4 = 40 powtórzeń); tak = trening był (min. 30 min)
   const UNITS = ['x10', 'tak', 'powt.', 'min', 'km'];
   const UNIT_LABEL = { 'x10': 'Liczba ×10', 'tak': 'Był / nie był', 'powt.': 'Powtórzenia', 'min': 'Minuty', 'km': 'Kilometry' };
@@ -198,6 +201,17 @@
     return withPlace.length ? withPlace[0].place : sp.places[0];
   }
 
+  // v4: kolory z nowej palety 12 kolorów
+  function migrateV4() {
+    let changed = false;
+    store.sports.forEach((sp) => {
+      const nc = OLD_COLORS[(sp.color || '').toUpperCase()];
+      if (nc) { sp.color = nc; pushOp({ t: 'sports', op: 'upsert', row: Object.assign({}, sp) }); changed = true; }
+    });
+    if (changed) saveLocal();
+    return changed;
+  }
+
   // ---------- waga ----------
   function setWeight(date, kg) {
     const ex = store.weights.find((w) => w.date === date);
@@ -291,7 +305,7 @@
       saveLocal();
       ui.syncing = false;
       if (!store.sports.length) seedDefaults();
-      else { const m2 = migrateV2(), m3 = migrateV3(); if (m2 || m3) { render(); flush(); } }
+      else { const m2 = migrateV2(), m3 = migrateV3(), m4 = migrateV4(); if (m2 || m3 || m4) { render(); flush(); } }
     } catch (e) {
       console.warn('HalfWay pull', e);
     }
@@ -908,7 +922,7 @@
   function viewLogin() {
     const a = ui.auth, login = a.mode === 'login';
     return '<div class="login"><form class="box" data-submit="auth" novalidate>' +
-      '<div class="logo"><span style="background:#DC3B41"></span><span style="background:#3E63DD"></span><span style="background:#E0590A"></span><span style="background:#2B9358"></span></div>' +
+      '<div class="logo"><span style="background:#FF1E00"></span><span style="background:#2962FF"></span><span style="background:#FFD700"></span><span style="background:#4CAF50"></span></div>' +
       '<div><h1 class="h1">HalfWay</h1><div class="muted">Twój dziennik treningów</div></div>' + installHint() +
       '<div class="field"><label for="in-email">E-mail</label><input class="input" id="in-email" data-in="email" type="email" autocomplete="email" autocapitalize="off" value="' + esc(a.email) + '"></div>' +
       '<div class="field"><label for="in-pass">Hasło' + (login ? '' : ' (min. 6 znaków)') + '</label><input class="input" id="in-pass" data-in="pass" type="password" autocomplete="' + (login ? 'current-password' : 'new-password') + '" value="' + esc(a.pass) + '"></div>' +
@@ -923,7 +937,7 @@
   function installHint() {
     if (STANDALONE || !IOS) return '';
     try { if (localStorage.getItem('halfway:hint-off')) return ''; } catch (e) { /* */ }
-    return '<div class="hint" role="note"><div class="hint-ic"><span style="background:#DC3B41"></span><span style="background:#3E63DD"></span><span style="background:#E0590A"></span><span style="background:#2B9358"></span></div>' +
+    return '<div class="hint" role="note"><div class="hint-ic"><span style="background:#FF1E00"></span><span style="background:#2962FF"></span><span style="background:#FFD700"></span><span style="background:#4CAF50"></span></div>' +
       '<div style="flex:1;min-width:0"><b>Zainstaluj HalfWay jak aplikację</b><div>Stuknij <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg> <b>Udostępnij</b>, potem <b>Dodaj do ekranu początkowego</b>.</div></div>' +
       '<button type="button" class="icon-btn" data-a="hintOff" aria-label="Ukryj podpowiedź">' + ICON.x + '</button></div>';
   }
@@ -933,7 +947,7 @@
     const tab = ui.tab;
     const body = tab === 'history' ? viewHistory(c) : tab === 'sports' ? viewSports(c) : tab === 'weight' ? viewWeight(c) : tab === 'stats' ? viewStats(c) : viewToday(c);
     const nav = [['today', 'Dziś', ICON.cal], ['history', 'Ciągłość', ICON.grid], ['weight', 'Waga', ICON.scale], ['stats', 'Statystyki', ICON.chart], ['sports', 'Sporty', ICON.list]];
-    const sidebar = '<aside class="sidebar"><div class="brand"><span class="logo"><span style="background:#DC3B41"></span><span style="background:#3E63DD"></span><span style="background:#E0590A"></span><span style="background:#2B9358"></span></span>HalfWay</div>' +
+    const sidebar = '<aside class="sidebar"><div class="brand"><span class="logo"><span style="background:#FF1E00"></span><span style="background:#2962FF"></span><span style="background:#FFD700"></span><span style="background:#4CAF50"></span></span>HalfWay</div>' +
       nav.map((n) => '<button type="button" class="nav' + (tab === n[0] ? ' on' : '') + '" data-a="tab" data-v="' + n[0] + '">' + n[2] + n[1] + '</button>').join('') +
       '<div class="foot">' + (tab === 'sports' || tab === 'weight' || tab === 'stats' ? '<button type="button" class="btn" data-a="open">' + ICON.plus + 'Dodaj trening</button>' : '') + '</div></aside>';
     const tabbar = '<nav class="tabbar" aria-label="Nawigacja">' +
@@ -1254,7 +1268,7 @@
   } else {
     if (store.owner !== 'local') { store = emptyStore('local'); }
     if (!Array.isArray(store.weights)) store.weights = [];
-    if (!store.sports.length) seedDefaults(); else { migrateV2(); migrateV3(); render(); }
+    if (!store.sports.length) seedDefaults(); else { migrateV2(); migrateV3(); migrateV4(); render(); }
   }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {

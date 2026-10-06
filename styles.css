@@ -138,7 +138,7 @@ h1, h2, h3 { margin: 0; }
 .input { height: 48px; border: 1px solid #DAD5CC; border-radius: 14px; padding: 0 14px; font-size: 16px; font-family: inherit; font-weight: 600; background: var(--sheet); color: var(--ink); width: 100%; }
 .seg { display: flex; gap: 8px; }
 .seg .pill { flex: 1; justify-content: center; border-radius: 12px; height: 44px; }
-.swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+.swatches { display: grid; grid-template-columns: repeat(6, 36px); gap: 12px 14px; }
 .swatch { width: 36px; height: 36px; border-radius: 50%; border: 0; }
 .swatch.on { box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--c); }
 
