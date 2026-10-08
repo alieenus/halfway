@@ -1060,9 +1060,38 @@
       '<div class="wgrid">' + grid + '</div>' +
       '<div class="small" style="font-weight:600">Stuknij dzień, żeby go wpisać albo poprawić · średnio ' + (wdays ? hFmt(Math.round(hours / wdays * 10) / 10) : '0') + ' h na dzień pracy · urlop w ' + wk.y + ': ' + yearLeave + ' ' + plural(yearLeave, 'dzień', 'dni', 'dni') + '</div>' +
       '</section>';
+    // zestawienie roczne
+    const yr = ui.wkYear || c.T.getFullYear();
+    const years = (store.work || []).map((w) => +w.date.slice(0, 4));
+    const minY = Math.min.apply(null, years.concat([c.T.getFullYear()])), maxY = Math.max.apply(null, years.concat([c.T.getFullYear()]));
+    const lastM = yr === c.T.getFullYear() ? c.T.getMonth() : 11;
+    const rowsY = [];
+    let yH = 0, yD = 0, yL = 0;
+    for (let mi = 0; mi <= lastM; mi++) {
+      const pre = yr + '-' + pad(mi + 1);
+      const ws = (store.work || []).filter((w) => w.date.slice(0, 7) === pre);
+      const h = ws.filter((w) => w.kind !== 'leave').reduce((a, w) => a + Number(w.hours), 0);
+      const dd = ws.filter((w) => w.kind !== 'leave').length, ll = ws.filter((w) => w.kind === 'leave').length;
+      yH += h; yD += dd; yL += ll;
+      rowsY.push({ mi: mi, h: h, d: dd, l: ll });
+    }
+    const maxH = Math.max.apply(null, rowsY.map((r) => r.h).concat([1]));
+    const summary = '<section class="card stack-s ysum">' +
+      '<div class="between"><h2 class="h2" style="font-size:19px">Zestawienie roczne</h2>' +
+        '<div class="ypager"><button type="button" class="dp-arr" data-a="wkYear" data-v="' + (yr - 1) + '"' + (yr <= minY ? ' disabled' : '') + ' aria-label="Poprzedni rok">' + ICON.left + '</button>' +
+        '<b>' + yr + '</b><button type="button" class="dp-arr" data-a="wkYear" data-v="' + (yr + 1) + '"' + (yr >= maxY ? ' disabled' : '') + ' aria-label="Następny rok">' + ICON.right + '</button></div></div>' +
+      '<div class="ytotal"><div><b>' + hFmt(yH) + ' h</b><span>przepracowane w ' + yr + '</span></div><div><b>' + yD + '</b><span>dni pracy</span></div><div><b>' + (yD ? hFmt(Math.round(yH / yD * 10) / 10) : '0') + ' h</b><span>średnio / dzień</span></div><div><b>' + yL + '</b><span>dni urlopu</span></div></div>' +
+      '<div class="ytable"><div class="yrow yhead"><span>Miesiąc</span><span>Dni</span><span>Godziny</span><span></span><span>U</span></div>' +
+      rowsY.slice().reverse().map((r) => '<button type="button" class="yrow' + (r.mi === wk.m && yr === wk.y ? ' sel' : '') + '" data-a="wkMonth" data-y="' + yr + '" data-m="' + r.mi + '">' +
+        '<span class="ym">' + M_NOM[r.mi] + '</span><span>' + (r.d || '–') + '</span>' +
+        '<span><b>' + (r.h ? hFmt(r.h) + ' h' : '–') + '</b>' + (r.d ? ' <small>(' + hFmt(Math.round(r.h / r.d * 10) / 10) + '/dzień)</small>' : '') + '</span>' +
+        '<span class="ybar"><i style="width:' + (r.h / maxH * 100).toFixed(1) + '%"></i></span>' +
+        '<span>' + (r.l ? '<span class="ubadge">' + r.l + '</span>' : '') + '</span></button>').join('') +
+      '</div></section>';
+
     return '<div class="top"><h1 class="h1">Work</h1>' + syncBadge() + '</div>' +
       (ui.workMissing ? '<div class="banner">Tabela godzin pracy nie jest jeszcze utworzona w Supabase – uruchom SQL z instrukcji, a wpisy zapiszą się w chmurze.</div>' : '') +
-      '<div class="sports-grid work-grid"><div class="stack">' + tiles + cal + '</div><div>' + form + '</div></div>';
+      '<div class="sports-grid work-grid"><div class="stack">' + tiles + cal + summary + '</div><div>' + form + '</div></div>';
   }
 
   function viewLogin() {
@@ -1168,6 +1197,8 @@
     regAll() { ui.regAll = !ui.regAll; render(); },
     wkDate(d) { Object.assign(ui.wk, workDraftFor(d.v)); const dd = parseKey(d.v); ui.wk.y = dd.getFullYear(); ui.wk.m = dd.getMonth(); render(); },
     wkPick(d) { const dd = parseKey(d.k); Object.assign(ui.wk, workDraftFor(d.k)); render(); if (window.innerWidth < 900) { const f = document.querySelector('.sports-grid > div:last-child'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' }); } },
+    wkYear(d) { ui.wkYear = Number(d.v); render(); },
+    wkMonth(d) { ui.wk.y = Number(d.y); ui.wk.m = Number(d.m); render(); const cal = document.querySelector('.work-grid .wgrid'); if (cal) cal.closest('section').scrollIntoView({ behavior: 'smooth', block: 'start' }); },
     wkKind(d) { ui.wk.kind = d.v; render(); },
     wkMinus() { ui.wk.hours = Math.max(0.5, Math.round((ui.wk.hours - 0.5) * 2) / 2); render(); },
     wkPlus() { ui.wk.hours = Math.min(24, Math.round((ui.wk.hours + 0.5) * 2) / 2); render(); },

@@ -351,3 +351,27 @@ h1, h2, h3 { margin: 0; }
 .dp-arr:disabled { opacity: .3; cursor: default; }
 .dp-arr:not(:disabled):hover { background: rgba(127,127,127,.12); }
 .dp-mid { position: relative; height: 100%; display: flex; align-items: center; padding: 0 6px; font-weight: 800; font-size: 14px; white-space: nowrap; min-width: 82px; justify-content: center; cursor: pointer; }
+
+/* ---------- v9: zestawienie roczne Work ---------- */
+.ypager { display: inline-flex; align-items: center; gap: 2px; height: 40px; border: 1px solid var(--line); border-radius: 999px; background: #fff; }
+.ypager b { font-family: var(--display); font-size: 17px; padding: 0 4px; }
+.ytotal { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; background: var(--ink); color: #fff; border-radius: 18px; padding: 14px; margin: 4px 0 6px; }
+.ytotal b { display: block; font-family: var(--display); font-size: 22px; font-weight: 800; line-height: 1.1; }
+.ytotal div:first-child b { font-size: 26px; }
+.ytotal span { font-size: 11px; font-weight: 700; color: #C9C5BD; }
+.ytable { display: flex; flex-direction: column; }
+.yrow { display: grid; grid-template-columns: 104px 40px minmax(0, 1.3fr) minmax(0, 1fr) 30px; gap: 10px; align-items: center; padding: 10px 6px; border: 0; border-bottom: 1px solid #EFEBE4; background: transparent; text-align: left; font-size: 14px; font-weight: 600; color: var(--ink); border-radius: 10px; width: 100%; }
+.yrow:last-child { border-bottom: 0; }
+button.yrow:hover { background: var(--bg); }
+.yrow.sel { background: var(--bg); box-shadow: inset 3px 0 0 var(--ink); }
+.yrow.yhead { font-size: 11px; font-weight: 700; color: var(--muted); padding-top: 4px; padding-bottom: 6px; }
+.yrow .ym { font-weight: 800; }
+.yrow small { font-size: 11.5px; color: var(--muted); font-weight: 700; }
+.ybar { height: 10px; background: var(--soft); border-radius: 5px; overflow: hidden; }
+.ybar i { display: block; height: 100%; background: #2962FF; border-radius: 0 5px 5px 0; }
+.yrow .ubadge { width: 24px; }
+@media (max-width: 520px) {
+  .ytotal { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .yrow { grid-template-columns: 88px 28px minmax(0, 1fr) 26px; }
+  .yrow .ybar, .yrow.yhead span:nth-child(4) { display: none; }
+}
